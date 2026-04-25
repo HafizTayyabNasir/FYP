@@ -680,10 +680,12 @@ async def discover_websites(data: dict):
 @router.post("/discover-website-single")
 async def discover_website_single(data: dict):
     """
-    Discover the website for a single business via DuckDuckGo search.
+    Discover the website for a single business via DuckDuckGo search,
+    then immediately scrape it for email, phone, and social media.
     Used for progressive row-by-row discovery from the UI.
     """
     from app.services.osm.website_discovery import discover_website
+    from app.services.scraping.website_scraper import scrape_website_sync
 
     name = data.get("business_name", "")
     city = data.get("city", "")
@@ -698,8 +700,31 @@ async def discover_website_single(data: dict):
         lambda: discover_website(name, city, country, verify=True),
     )
 
+    contacts = {}
+    if url:
+        try:
+            scraped = await loop.run_in_executor(
+                executor,
+                lambda: scrape_website_sync(url),
+            )
+            contacts = {
+                "email": scraped.best_email,
+                "phone": scraped.best_phone,
+                "all_emails_found": scraped.emails,
+                "all_phones_found": scraped.phones,
+                "facebook": scraped.facebook,
+                "instagram": scraped.instagram,
+                "twitter": scraped.twitter,
+                "linkedin": scraped.linkedin,
+                "youtube": scraped.youtube,
+                "tiktok": scraped.tiktok,
+            }
+        except Exception:
+            pass
+
     return {
         "business_name": name,
         "website": url,
         "discovered": url is not None,
+        **contacts,
     }

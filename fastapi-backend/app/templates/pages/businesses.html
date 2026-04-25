@@ -166,22 +166,34 @@
                                 <span x-show="!business.website" class="text-gray-400 text-sm">-</span>
                             </td>
                             <td>
-                                <span x-show="business.email" class="inline-flex items-center text-sm text-green-600 bg-green-50 px-2.5 py-1 rounded-full font-medium">
-                                    <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
-                                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
-                                    </svg>
-                                    <span x-text="business.email"></span>
-                                </span>
+                                <div x-show="business.email">
+                                    <span class="inline-flex items-center text-sm text-green-600 bg-green-50 px-2.5 py-1 rounded-full font-medium">
+                                        <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+                                            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+                                        </svg>
+                                        <span x-text="business.email"></span>
+                                    </span>
+                                    <span x-show="business.website_discovered"
+                                          class="inline-block mt-0.5 text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full font-medium">
+                                        🔍 discovered
+                                    </span>
+                                </div>
                                 <span x-show="!business.email" class="text-gray-400 text-sm">-</span>
                             </td>
                             <td>
-                                <span x-show="business.phone" class="inline-flex items-center text-sm text-gray-700 bg-gray-100 px-2 py-1 rounded-full">
-                                    <svg class="w-3 h-3 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
-                                    </svg>
-                                    <span x-text="business.phone"></span>
-                                </span>
+                                <div x-show="business.phone">
+                                    <span class="inline-flex items-center text-sm text-gray-700 bg-gray-100 px-2 py-1 rounded-full">
+                                        <svg class="w-3 h-3 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                                        </svg>
+                                        <span x-text="business.phone"></span>
+                                    </span>
+                                    <span x-show="business.website_discovered"
+                                          class="inline-block mt-0.5 text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full font-medium">
+                                        🔍 discovered
+                                    </span>
+                                </div>
                                 <span x-show="!business.phone" class="text-gray-400 text-sm">-</span>
                             </td>
                             <td>
@@ -198,6 +210,10 @@
                                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12,2.16c3.2,0,3.58.01,4.85.07,3.25.15,4.77,1.69,4.92,4.92.06,1.27.07,1.65.07,4.85s-.01,3.58-.07,4.85c-.15,3.23-1.66,4.77-4.92,4.92-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.65-.07-4.85s.01-3.58.07-4.85C2.38,3.92,3.9,2.38,7.15,2.23,8.42,2.17,8.8,2.16,12,2.16ZM12,0C8.74,0,8.33.01,7.05.07c-4.27.2-6.78,2.71-6.98,6.98C.01,8.33,0,8.74,0,12s.01,3.67.07,4.95c.2,4.27,2.71,6.78,6.98,6.98,1.28.06,1.69.07,4.95.07s3.67-.01,4.95-.07c4.27-.2,6.78-2.71,6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.27-2.71-6.78-6.98-6.98C15.67.01,15.26,0,12,0Zm0,5.84A6.16,6.16,0,1,0,18.16,12,6.16,6.16,0,0,0,12,5.84ZM12,16a4,4,0,1,1,4-4A4,4,0,0,1,12,16ZM18.41,4.15a1.44,1.44,0,1,0,1.44,1.44A1.44,1.44,0,0,0,18.41,4.15Z"/></svg>
                                     </a>
                                 </div>
+                                <span x-show="business.website_discovered && (business.facebook || business.instagram)"
+                                      class="inline-block mt-0.5 text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full font-medium">
+                                    🔍 discovered
+                                </span>
                             </td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center space-x-1">
@@ -703,6 +719,15 @@ function businessesData() {
                                 business.website_discovered = true;
                                 this.discoveryProgress.found++;
                             }
+                            if (data.email) business.email = data.email;
+                            if (data.phone) business.phone = data.phone;
+                            if (data.all_emails_found?.length) business.all_emails_found = data.all_emails_found;
+                            if (data.facebook) business.facebook = data.facebook;
+                            if (data.instagram) business.instagram = data.instagram;
+                            if (data.twitter) business.twitter = data.twitter;
+                            if (data.linkedin) business.linkedin = data.linkedin;
+                            if (data.youtube) business.youtube = data.youtube;
+                            if (data.tiktok) business.tiktok = data.tiktok;
                         }
                     } catch (e) {
                         // Skip individual failures
