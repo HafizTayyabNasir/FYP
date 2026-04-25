@@ -1,0 +1,47 @@
+# FastAPI and Web Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+jinja2>=3.1.2
+aiofiles>=23.2.1
+
+# Pydantic
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# HTTP Clients
+httpx>=0.26.0
+requests>=2.31.0
+
+# AI/LLM APIs
+groq>=0.4.0
+openai>=1.10.0
+
+# Web Scraping & Parsing
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+playwright>=1.41.0
+duckduckgo-search>=3.9.0
+
+# Database (SQLAlchemy)
+sqlalchemy>=2.0.25
+alembic>=1.13.0
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9
+
+# Celery for Background Tasks
+celery>=5.3.0
+redis>=5.0.0
+
+# Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.1.0
+
+# Email
+aiosmtplib>=3.0.0
+email-validator>=2.1.0
+
+# Utilities
+python-dotenv>=1.0.0
+tenacity>=8.2.0

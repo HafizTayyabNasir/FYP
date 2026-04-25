@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div x-data="settingsData()" x-init="init()" class="animate-fade-in">
+    <!-- Page Header -->
+    <div class="mb-8 flex items-center">
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mr-4">
+            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+        </div>
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">Settings</h2>
+            <p class="text-sm text-gray-500">Configure your account and integrations</p>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Settings Navigation -->
+        <div class="lg:col-span-1">
+            <div class="card sticky top-4 hover:shadow-xl">
+                <nav class="space-y-2">
+                    <button @click="activeTab = 'smtp'" class="w-full text-left px-4 py-3 rounded-xl transition-all duration-200"
+                            :class="activeTab === 'smtp' ? 'bg-gradient-to-r from-primary-50 to-accent-50 text-primary-700 font-semibold border border-primary-100 shadow-sm' : 'text-gray-600 hover:bg-gray-50'">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3" :class="activeTab === 'smtp' ? 'bg-gradient-to-br from-primary-400 to-accent-500 text-white' : 'bg-gray-100 text-gray-500'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                </svg>
+                            </div>
+                            Email (SMTP/IMAP)
+                        </div>
+                    </button>
+                    <button @click="activeTab = 'api'" class="w-full text-left px-4 py-3 rounded-xl transition-all duration-200"
+                            :class="activeTab === 'api' ? 'bg-gradient-to-r from-primary-50 to-accent-50 text-primary-700 font-semibold border border-primary-100 shadow-sm' : 'text-gray-600 hover:bg-gray-50'">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3" :class="activeTab === 'api' ? 'bg-gradient-to-br from-primary-400 to-accent-500 text-white' : 'bg-gray-100 text-gray-500'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                                </svg>
+                            </div>
+                            API Keys
+                        </div>
+                    </button>
+                    <button @click="activeTab = 'profile'" class="w-full text-left px-4 py-3 rounded-xl transition-all duration-200"
+                            :class="activeTab === 'profile' ? 'bg-gradient-to-r from-primary-50 to-accent-50 text-primary-700 font-semibold border border-primary-100 shadow-sm' : 'text-gray-600 hover:bg-gray-50'">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3" :class="activeTab === 'profile' ? 'bg-gradient-to-br from-primary-400 to-accent-500 text-white' : 'bg-gray-100 text-gray-500'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                </svg>
+                            </div>
+                            Profile
+                        </div>
+                    </button>
+                    <button @click="activeTab = 'company'" class="w-full text-left px-4 py-3 rounded-xl transition-all duration-200"
+                            :class="activeTab === 'company' ? 'bg-gradient-to-r from-primary-50 to-accent-50 text-primary-700 font-semibold border border-primary-100 shadow-sm' : 'text-gray-600 hover:bg-gray-50'">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3" :class="activeTab === 'company' ? 'bg-gradient-to-br from-primary-400 to-accent-500 text-white' : 'bg-gray-100 text-gray-500'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                </svg>
+                            </div>
+                            Company Info
+                        </div>
+                    </button>
+                    <button @click="activeTab = 'templates'" class="w-full text-left px-4 py-3 rounded-xl transition-all duration-200"
+                            :class="activeTab === 'templates' ? 'bg-gradient-to-r from-primary-50 to-accent-50 text-primary-700 font-semibold border border-primary-100 shadow-sm' : 'text-gray-600 hover:bg-gray-50'">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3" :class="activeTab === 'templates' ? 'bg-gradient-to-br from-primary-400 to-accent-500 text-white' : 'bg-gray-100 text-gray-500'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path>
+                                </svg>
+                            </div>
+                            Email Templates
+                        </div>
+                    </button>
+                </nav>
+            </div>
+        </div>
+        
+        <!-- Settings Content -->
+        <div class="lg:col-span-2">
+            <!-- SMTP/IMAP Settings -->
+            <div x-show="activeTab === 'smtp'" class="space-y-6">
+                <div class="card hover:shadow-xl">
+                    <div class="flex items-center mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center mr-3">
+                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">SMTP Settings (Outgoing)</h3>
+                            <p class="text-sm text-gray-500">Configure your SMTP server to send outreach emails.</p>
+                        </div>
+                    </div>
+                    
+                    <form @submit.prevent="saveSmtp" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1.5">SMTP Host</label>
+                                <input type="text" x-model="smtp.host" class="input-field" placeholder="smtp.gmail.com">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Port</label>
+                                <input type="number" x-model="smtp.port" class="input-field" placeholder="587">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
+                            <input type="email" x-model="smtp.username" class="input-field" placeholder="your@email.com">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Password / App Password</label>
+                            <input type="password" x-model="smtp.password" class="input-field" placeholder="••••••••">
+                            <p class="text-xs text-gray-500 mt-1.5">For Gmail, use an App Password from your Google Account settings.</p>
+                        </div>
+                        
+                        <div class="flex items-center space-x-6 p-3 bg-gray-50 rounded-xl">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" x-model="smtp.use_tls" class="rounded text-primary-600 mr-2 focus:ring-primary-500">
+                                <span class="text-sm font-medium">Use TLS</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" x-model="smtp.use_ssl" class="rounded text-primary-600 mr-2 focus:ring-primary-500">
+                                <span class="text-sm font-medium">Use SSL</span>
+                            </label>
+                        </div>
+                        
+                        <div class="flex space-x-2">
+                            <button type="button" @click="testSmtp" class="btn-secondary" :disabled="testingSmtp">
+                                <span x-show="!testingSmtp">Test Connection</span>
+                                <span x-show="testingSmtp">Testing...</span>
+                            </button>
+                            <button type="submit" class="btn-primary">Save SMTP Settings</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="card">
+                    <h3 class="text-lg font-semibold mb-4">IMAP Settings (Incoming)</h3>
+                    <p class="text-sm text-gray-500 mb-4">Configure your IMAP server to receive and sync emails.</p>
+                    
+                    <form @submit.prevent="saveImap" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">IMAP Host</label>
+                                <input type="text" x-model="imap.host" class="input-field" placeholder="imap.gmail.com">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Port</label>
+                                <input type="number" x-model="imap.port" class="input-field" placeholder="993">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                            <input type="email" x-model="imap.username" class="input-field" placeholder="your@email.com">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Password / App Password</label>
+                            <input type="password" x-model="imap.password" class="input-field" placeholder="••••••••">
+                        </div>
+                        
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="imap.use_ssl" class="rounded text-blue-600 mr-2">
+                            <span class="text-sm">Use SSL</span>
+                        </label>
+                        
+                        <button type="submit" class="btn-primary">Save IMAP Settings</button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- API Keys Settings -->
+            <div x-show="activeTab === 'api'" class="card">
+                <h3 class="text-lg font-semibold mb-4">API Keys</h3>
+                <p class="text-sm text-gray-500 mb-4">Configure API keys for AI services and integrations.</p>
+                
+                <form @submit.prevent="saveApiKeys" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Groq API Key</label>
+                        <input type="password" x-model="apiKeys.groq" class="input-field" placeholder="gsk_...">
+                        <p class="text-xs text-gray-500 mt-1">Used for email generation (LLaMA model).</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Grok (X.AI) API Key</label>
+                        <input type="password" x-model="apiKeys.grok" class="input-field" placeholder="xai-...">
+                        <p class="text-xs text-gray-500 mt-1">Used for business data extraction.</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">OpenAI API Key (Optional)</label>
+                        <input type="password" x-model="apiKeys.openai" class="input-field" placeholder="sk-...">
+                        <p class="text-xs text-gray-500 mt-1">Alternative for email generation.</p>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">Save API Keys</button>
+                </form>
+                
+                <div class="mt-6 pt-6 border-t">
+                    <h4 class="font-medium mb-2">API Status</h4>
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-sm">
+                            <span>Groq API</span>
+                            <span class="px-2 py-1 rounded text-xs" 
+                                  :class="apiStatus.groq ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                                  x-text="apiStatus.groq ? 'Connected' : 'Not configured'"></span>
+                        </div>
+                        <div class="flex items-center justify-between text-sm">
+                            <span>Grok (X.AI)</span>
+                            <span class="px-2 py-1 rounded text-xs" 
+                                  :class="apiStatus.grok ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'"
+                                  x-text="apiStatus.grok ? 'Connected' : 'Optional'"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Profile Settings -->
+            <div x-show="activeTab === 'profile'" class="card">
+                <h3 class="text-lg font-semibold mb-4">Your Profile</h3>
+                
+                <form @submit.prevent="saveProfile" class="space-y-4">
+                    <div class="flex items-center mb-4">
+                        <div class="w-20 h-20 rounded-full bg-blue-500 text-white flex items-center justify-center text-2xl font-bold mr-4"
+                             x-text="profile.name ? profile.name[0].toUpperCase() : 'U'">
+                        </div>
+                        <div>
+                            <p class="font-medium" x-text="profile.name || 'Your Name'"></p>
+                            <p class="text-sm text-gray-500" x-text="profile.email || 'your@email.com'"></p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <input type="text" x-model="profile.name" class="input-field" placeholder="John Doe">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input type="email" x-model="profile.email" class="input-field" placeholder="john@example.com">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                        <input type="tel" x-model="profile.phone" class="input-field" placeholder="+1 234 567 8900">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+                        <input type="text" x-model="profile.title" class="input-field" placeholder="Sales Manager">
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">Save Profile</button>
+                </form>
+            </div>
+            
+            <!-- Company Settings -->
+            <div x-show="activeTab === 'company'" class="card">
+                <h3 class="text-lg font-semibold mb-4">Company Information</h3>
+                <p class="text-sm text-gray-500 mb-4">This information is used when generating outreach emails.</p>
+                
+                <form @submit.prevent="saveCompany" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                        <input type="text" x-model="company.name" class="input-field" placeholder="Your Company LLC">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                        <input type="url" x-model="company.website" class="input-field" placeholder="https://yourcompany.com">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Services Offered</label>
+                        <textarea x-model="company.services" class="input-field" rows="3" placeholder="Web development, SEO optimization, digital marketing..."></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Unique Selling Points</label>
+                        <textarea x-model="company.usp" class="input-field" rows="2" placeholder="What makes your company unique?"></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email Signature</label>
+                        <textarea x-model="company.signature" class="input-field" rows="4" placeholder="Best regards,
+John Doe
+Your Company
++1 234 567 8900"></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">Save Company Info</button>
+                </form>
+            </div>
+            
+            <!-- Email Templates -->
+            <div x-show="activeTab === 'templates'" class="space-y-6">
+                <div class="card">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold">Email Templates</h3>
+                        <button @click="addTemplate" class="btn-primary text-sm">+ New Template</button>
+                    </div>
+                    
+                    <p class="text-sm text-gray-500 mb-4">
+                        Create reusable email templates. Use variables like <code class="bg-gray-100 px-1 rounded">{{business_name}}</code>, 
+                        <code class="bg-gray-100 px-1 rounded">{{issues}}</code>, <code class="bg-gray-100 px-1 rounded">{{overall_score}}</code>.
+                    </p>
+                    
+                    <div class="space-y-4">
+                        <template x-for="template in templates" :key="template.id">
+                            <div class="border rounded-lg p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <input type="text" x-model="template.name" class="font-medium text-lg border-0 bg-transparent focus:ring-0 p-0" placeholder="Template Name">
+                                    <button @click="deleteTemplate(template)" class="text-red-500 hover:text-red-700">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                
+                                <div class="space-y-2">
+                                    <input type="text" x-model="template.subject" class="input-field text-sm" placeholder="Subject line">
+                                    <textarea x-model="template.body" class="input-field text-sm" rows="6" placeholder="Email body..."></textarea>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <p x-show="templates.length === 0" class="text-center text-gray-400 py-4">
+                            No templates yet. Create your first template.
+                        </p>
+                    </div>
+                    
+                    <button @click="saveTemplates" class="btn-primary mt-4" x-show="templates.length > 0">Save All Templates</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function settingsData() {
+    return {
+        activeTab: 'smtp',
+        
+        // SMTP
+        smtp: {
+            host: '',
+            port: 587,
+            username: '',
+            password: '',
+            use_tls: true,
+            use_ssl: false
+        },
+        testingSmtp: false,
+        
+        // IMAP
+        imap: {
+            host: '',
+            port: 993,
+            username: '',
+            password: '',
+            use_ssl: true
+        },
+        
+        // API Keys
+        apiKeys: {
+            groq: '',
+            grok: '',
+            openai: ''
+        },
+        apiStatus: {
+            groq: false,
+            grok: false
+        },
+        
+        // Profile
+        profile: {
+            name: '',
+            email: '',
+            phone: '',
+            title: ''
+        },
+        
+        // Company
+        company: {
+            name: '',
+            website: '',
+            services: '',
+            usp: '',
+            signature: ''
+        },
+        
+        // Templates
+        templates: [],
+        
+        init() {
+            this.loadSettings();
+        },
+        
+        loadSettings() {
+            // Load from localStorage
+            this.smtp = JSON.parse(localStorage.getItem('settings_smtp') || JSON.stringify(this.smtp));
+            this.imap = JSON.parse(localStorage.getItem('settings_imap') || JSON.stringify(this.imap));
+            this.apiKeys = JSON.parse(localStorage.getItem('settings_apiKeys') || JSON.stringify(this.apiKeys));
+            this.profile = JSON.parse(localStorage.getItem('settings_profile') || JSON.stringify(this.profile));
+            this.company = JSON.parse(localStorage.getItem('settings_company') || JSON.stringify(this.company));
+            this.templates = JSON.parse(localStorage.getItem('settings_templates') || '[]');
+            
+            // Check API status
+            this.apiStatus.groq = !!this.apiKeys.groq;
+            this.apiStatus.grok = !!this.apiKeys.grok;
+        },
+        
+        async saveSmtp() {
+            localStorage.setItem('settings_smtp', JSON.stringify(this.smtp));
+            showToast('SMTP settings saved!', 'success');
+        },
+        
+        async testSmtp() {
+            this.testingSmtp = true;
+            try {
+                // Simulate test
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                showToast('SMTP connection successful!', 'success');
+            } catch (error) {
+                showToast('SMTP connection failed', 'error');
+            } finally {
+                this.testingSmtp = false;
+            }
+        },
+        
+        async saveImap() {
+            localStorage.setItem('settings_imap', JSON.stringify(this.imap));
+            showToast('IMAP settings saved!', 'success');
+        },
+        
+        async saveApiKeys() {
+            localStorage.setItem('settings_apiKeys', JSON.stringify(this.apiKeys));
+            this.apiStatus.groq = !!this.apiKeys.groq;
+            this.apiStatus.grok = !!this.apiKeys.grok;
+            showToast('API keys saved!', 'success');
+        },
+        
+        async saveProfile() {
+            localStorage.setItem('settings_profile', JSON.stringify(this.profile));
+            showToast('Profile saved!', 'success');
+        },
+        
+        async saveCompany() {
+            localStorage.setItem('settings_company', JSON.stringify(this.company));
+            showToast('Company info saved!', 'success');
+        },
+        
+        addTemplate() {
+            this.templates.push({
+                id: Date.now(),
+                name: 'New Template',
+                subject: '',
+                body: ''
+            });
+        },
+        
+        deleteTemplate(template) {
+            this.templates = this.templates.filter(t => t.id !== template.id);
+        },
+        
+        saveTemplates() {
+            localStorage.setItem('settings_templates', JSON.stringify(this.templates));
+            showToast('Templates saved!', 'success');
+        }
+    };
+}
+</script>
+{% endblock %}

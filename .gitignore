@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Local environment / secrets
+.env
+fastapi-backend/.env
+
+# Local DB / runtime artifacts
+*.sqlite
+*.db
+fastapi-backend/app.db
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

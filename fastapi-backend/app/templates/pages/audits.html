@@ -1,0 +1,1323 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div x-data="auditsData()" x-init="init()">
+    <!-- Quick Audit Form -->
+    <div class="card mb-6">
+        <div class="flex items-center mb-4">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center mr-3">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-gray-800">Website Audit Tool</h3>
+                <p class="text-gray-500 text-sm">Analyze SEO, SSL, speed, responsiveness, social links, and image optimization</p>
+            </div>
+        </div>
+        
+        <form @submit.prevent="runQuickAudit" class="flex space-x-4">
+            <div class="flex-1 relative">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                    </svg>
+                </div>
+                <input type="url" x-model="websiteUrl" class="input-field pl-12" placeholder="https://example.com" required>
+            </div>
+            <button type="submit" class="btn-primary flex items-center" :disabled="auditing">
+                <span x-show="!auditing" class="flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    Run Audit
+                </span>
+                <span x-show="auditing" class="flex items-center">
+                    <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Auditing...
+                </span>
+            </button>
+        </form>
+    </div>
+    
+    <!-- Audit Result -->
+    <div x-show="auditResult" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-4" x-transition:enter-end="opacity-100 transform translate-y-0" class="space-y-6">
+        <!-- Overall Score Card -->
+        <div class="card overflow-hidden">
+            <div class="flex items-center justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center mb-2">
+                        <svg class="w-5 h-5 mr-2 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                        </svg>
+                        <h3 class="text-xl font-bold text-gray-800 truncate" x-text="auditResult?.url"></h3>
+                    </div>
+                    <p class="text-gray-500 text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span x-text="'Audited: ' + (auditResult?.timestamp ? new Date(auditResult.timestamp).toLocaleString() : '')"></span>
+                    </p>
+                </div>
+                <div class="text-center ml-6">
+                    <div class="relative">
+                        <div class="w-28 h-28 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-xl glow"
+                             :class="auditResult?.overall_score >= 4 ? 'bg-gradient-to-br from-green-400 to-emerald-600' : 
+                                     auditResult?.overall_score >= 3 ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : 
+                                     auditResult?.overall_score >= 2 ? 'bg-gradient-to-br from-orange-400 to-red-500' : 'bg-gradient-to-br from-red-500 to-rose-600'">
+                            <span x-text="(auditResult?.overall_score || 0).toFixed(1)"></span><span class="text-lg opacity-75">/5</span>
+                        </div>
+                    </div>
+                    <p class="text-sm font-medium text-gray-600 mt-2">Overall Score</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Score Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Pie Chart: Score Distribution -->
+            <div class="card">
+                <h4 class="font-bold text-gray-800 mb-4 flex items-center">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-100 to-accent-100 flex items-center justify-center mr-2">
+                        <svg class="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
+                        </svg>
+                    </div>
+                    Score Distribution
+                </h4>
+                <div class="h-64">
+                    <canvas id="scoreDistributionChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Radar Chart: All Metrics -->
+            <div class="card">
+                <h4 class="font-bold text-gray-800 mb-4 flex items-center">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-100 to-primary-100 flex items-center justify-center mr-2">
+                        <svg class="w-4 h-4 text-accent-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    Metrics Overview
+                </h4>
+                <div class="h-64">
+                    <canvas id="metricsRadarChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Individual Score Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- SEO Metadata -->
+            <div class="card metric-card group">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold flex items-center text-gray-800">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center mr-3 shadow-lg ">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                        </div>
+                        SEO Metadata
+                    </h4>
+                    <span class="text-2xl font-bold" :class="getScoreColor(auditResult?.seo_metadata?.score)"
+                          x-text="(auditResult?.seo_metadata?.score || 0).toFixed(1)"></span>
+                </div>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Title</span>
+                        <span :class="auditResult?.seo_metadata?.has_title ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full'" 
+                              x-text="auditResult?.seo_metadata?.has_title ? '✓ Found' : '✗ Missing'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Meta Description</span>
+                        <span :class="auditResult?.seo_metadata?.has_meta_description ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full'"
+                              x-text="auditResult?.seo_metadata?.has_meta_description ? '✓ Found' : '✗ Missing'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">H1 Tag</span>
+                        <span :class="auditResult?.seo_metadata?.has_h1 ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full'"
+                              x-text="auditResult?.seo_metadata?.has_h1 ? '✓ Found' : '✗ Missing'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1">
+                        <span class="text-gray-600">Canonical URL</span>
+                        <span :class="auditResult?.seo_metadata?.has_canonical ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full'"
+                              x-text="auditResult?.seo_metadata?.has_canonical ? '✓ Found' : '✗ Missing'"></span>
+                    </div>
+                </div>
+                <div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-700 ease-out"
+                         :style="'width: ' + ((auditResult?.seo_metadata?.score || 0) / 5 * 100) + '%'"></div>
+                </div>
+            </div>
+            
+            <!-- SSL Certificate -->
+            <div class="card metric-card group">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold flex items-center text-gray-800">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center mr-3 shadow-lg ">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                            </svg>
+                        </div>
+                        SSL Certificate
+                    </h4>
+                    <span class="text-2xl font-bold" :class="getScoreColor(auditResult?.ssl_certificate?.score)"
+                          x-text="(auditResult?.ssl_certificate?.score || 0).toFixed(1)"></span>
+                </div>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Valid</span>
+                        <span :class="auditResult?.ssl_certificate?.is_valid ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full'"
+                              x-text="auditResult?.ssl_certificate?.is_valid ? '✓ Valid' : '✗ Invalid'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Days Until Expiry</span>
+                        <span class="font-medium text-gray-800" x-text="auditResult?.ssl_certificate?.days_until_expiry || 'N/A'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1">
+                        <span class="text-gray-600">Issuer</span>
+                        <span class="truncate max-w-[150px] text-gray-800 font-medium" x-text="auditResult?.ssl_certificate?.issuer || 'N/A'"></span>
+                    </div>
+                </div>
+                <div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-green-400 to-emerald-600 rounded-full transition-all duration-700 ease-out"
+                         :style="'width: ' + ((auditResult?.ssl_certificate?.score || 0) / 5 * 100) + '%'"></div>
+                </div>
+            </div>
+            
+            <!-- Load Speed -->
+            <div class="card metric-card group">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold flex items-center text-gray-800">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center mr-3 shadow-lg ">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                        Load Speed
+                    </h4>
+                    <span class="text-2xl font-bold" :class="getScoreColor(auditResult?.load_speed?.score)"
+                          x-text="(auditResult?.load_speed?.score || 0).toFixed(1)"></span>
+                </div>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Load Time</span>
+                        <span class="font-medium text-gray-800" x-text="(auditResult?.load_speed?.load_time_seconds || 0).toFixed(2) + 's'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">DOM Content Loaded</span>
+                        <span class="font-medium text-gray-800" x-text="(auditResult?.load_speed?.dom_content_loaded || 0).toFixed(2) + 's'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1">
+                        <span class="text-gray-600">Page Size</span>
+                        <span class="font-medium text-gray-800" x-text="formatBytes(auditResult?.load_speed?.total_size_bytes || 0)"></span>
+                    </div>
+                </div>
+                <div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full transition-all duration-700 ease-out"
+                         :style="'width: ' + ((auditResult?.load_speed?.score || 0) / 5 * 100) + '%'"></div>
+                </div>
+            </div>
+            
+            <!-- Responsiveness -->
+            <div class="card metric-card group">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold flex items-center text-gray-800">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center mr-3 shadow-lg ">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        Responsiveness
+                    </h4>
+                    <span class="text-2xl font-bold" :class="getScoreColor(auditResult?.responsiveness?.score)"
+                          x-text="(auditResult?.responsiveness?.score || 0).toFixed(1)"></span>
+                </div>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Mobile Friendly</span>
+                        <span :class="auditResult?.responsiveness?.mobile_friendly ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full'"
+                              x-text="auditResult?.responsiveness?.mobile_friendly ? '✓ Yes' : '✗ No'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Viewport Meta</span>
+                        <span :class="auditResult?.responsiveness?.viewport_meta ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full'"
+                              x-text="auditResult?.responsiveness?.viewport_meta ? '✓ Found' : '✗ Missing'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1">
+                        <span class="text-gray-600">Media Queries</span>
+                        <span :class="auditResult?.responsiveness?.media_queries ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full'"
+                              x-text="auditResult?.responsiveness?.media_queries ? '✓ Found' : '✗ Missing'"></span>
+                    </div>
+                </div>
+                <div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-purple-400 to-purple-600 rounded-full transition-all duration-700 ease-out"
+                         :style="'width: ' + ((auditResult?.responsiveness?.score || 0) / 5 * 100) + '%'"></div>
+                </div>
+            </div>
+            
+            <!-- Social Links -->
+            <div class="card metric-card group">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold flex items-center text-gray-800">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center mr-3 shadow-lg ">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"></path>
+                            </svg>
+                        </div>
+                        Social Links
+                    </h4>
+                    <span class="text-2xl font-bold" :class="getScoreColor(auditResult?.social_links?.score)"
+                          x-text="(auditResult?.social_links?.score || 0).toFixed(1)"></span>
+                </div>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Total Links Found</span>
+                        <span class="font-medium text-gray-800 bg-gray-100 px-2 py-0.5 rounded-full" x-text="auditResult?.social_links?.total_links_found || 0"></span>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-3">
+                        <template x-for="platform in (auditResult?.social_links?.platforms || [])" :key="platform">
+                            <span class="px-3 py-1 bg-gradient-to-r from-pink-100 to-rose-100 text-pink-700 rounded-full text-xs font-medium" x-text="platform"></span>
+                        </template>
+                    </div>
+                </div>
+                <div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full transition-all duration-700 ease-out"
+                         :style="'width: ' + ((auditResult?.social_links?.score || 0) / 5 * 100) + '%'"></div>
+                </div>
+            </div>
+            
+            <!-- Image Alt Tags -->
+            <div class="card metric-card group">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-bold flex items-center text-gray-800">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center mr-3 shadow-lg ">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        Image Optimization
+                    </h4>
+                    <span class="text-2xl font-bold" :class="getScoreColor(auditResult?.image_alt_tags?.score)"
+                          x-text="(auditResult?.image_alt_tags?.score || 0).toFixed(1)"></span>
+                </div>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Total Images</span>
+                        <span class="font-medium text-gray-800" x-text="auditResult?.image_alt_tags?.total_images || 0"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">With Alt Text</span>
+                        <span class="text-green-600 bg-green-50 px-2 py-0.5 rounded-full font-medium" x-text="auditResult?.image_alt_tags?.with_alt_text || 0"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Missing Alt</span>
+                        <span class="text-red-600 bg-red-50 px-2 py-0.5 rounded-full font-medium" x-text="auditResult?.image_alt_tags?.missing_alt || 0"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1">
+                        <span class="text-gray-600">Coverage</span>
+                        <span class="font-medium text-gray-800" x-text="(auditResult?.image_alt_tags?.coverage || 0).toFixed(0) + '%'"></span>
+                    </div>
+                </div>
+                <div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full transition-all duration-700 ease-out"
+                         :style="'width: ' + ((auditResult?.image_alt_tags?.score || 0) / 5 * 100) + '%'"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recommendations -->
+        <div class="card" x-show="auditResult?.recommendations?.length > 0">
+            <div class="flex items-center mb-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center mr-3">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                </div>
+                <h4 class="font-bold text-gray-800 text-lg">Recommendations for Improvement</h4>
+            </div>
+            <ul class="space-y-3">
+                <template x-for="rec in (auditResult?.recommendations || [])" :key="rec">
+                    <li class="flex items-start p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl border border-yellow-100">
+                        <svg class="w-5 h-5 mr-3 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <span class="text-gray-700" x-text="rec"></span>
+                    </li>
+                </template>
+            </ul>
+        </div>
+        
+        <!-- Actions -->
+        <div class="card flex flex-wrap gap-4 items-center">
+            <button @click="extractBusinessData" class="btn-primary flex items-center" :disabled="extractingData">
+                <span x-show="!extractingData" class="flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Business Data Extraction
+                </span>
+                <span x-show="extractingData" class="flex items-center">
+                    <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Extracting...
+                </span>
+            </button>
+            <button @click="showEmailEditor = true" class="btn-success flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                </svg>
+                Write Email
+            </button>
+            <button @click="downloadReport" class="btn-secondary flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Download Report (JSON)
+            </button>
+        </div>
+        
+        <!-- Business Data Extraction Result -->
+        <div class="card mt-6" x-show="businessData">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center mr-3">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                        </svg>
+                    </div>
+                    <h4 class="text-lg font-bold text-gray-800">Business Data Extraction Result</h4>
+                </div>
+                <button @click="copyBusinessData" class="btn-outline text-sm flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                    Copy to Clipboard
+                </button>
+            </div>
+            
+            <!-- Business Info -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="space-y-4">
+                    <div class="p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-100">
+                        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Website URL</label>
+                        <p class="text-gray-800 font-medium mt-1" x-text="businessData?.website_url || '-'"></p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-gradient-to-r from-primary-50 to-accent-50 border border-primary-100">
+                        <label class="text-xs font-semibold text-primary-600 uppercase tracking-wider">Business Name</label>
+                        <p class="text-gray-800 font-bold text-lg mt-1" x-text="businessData?.business_name || '-'"></p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-100">
+                        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Industry</label>
+                        <p class="text-gray-800 font-medium mt-1" x-text="businessData?.industry || '-'"></p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-100">
+                        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Location</label>
+                        <p class="text-gray-800 font-medium mt-1" x-text="businessData?.location || '-'"></p>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="p-4 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100">
+                        <label class="text-xs font-semibold text-green-600 uppercase tracking-wider">Core Offer</label>
+                        <p class="text-gray-800 font-medium mt-1" x-text="businessData?.core_offer || '-'"></p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
+                        <label class="text-xs font-semibold text-blue-600 uppercase tracking-wider">Target Customers</label>
+                        <p class="text-gray-800 font-medium mt-1" x-text="businessData?.target_customers || '-'"></p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-100">
+                        <label class="text-xs font-semibold text-purple-600 uppercase tracking-wider">Business Goal</label>
+                        <p class="text-gray-800 font-medium mt-1" x-text="businessData?.business_goal || '-'"></p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100">
+                        <label class="text-xs font-semibold text-orange-600 uppercase tracking-wider">Differentiator</label>
+                        <p class="text-gray-800 font-medium mt-1" x-text="businessData?.differentiator || '-'"></p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Website Scores Table -->
+            <div class="flex items-center mb-4">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-100 to-primary-100 flex items-center justify-center mr-2">
+                    <svg class="w-4 h-4 text-accent-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+                <h5 class="font-bold text-gray-800">Website Scores</h5>
+            </div>
+            <div class="overflow-x-auto mb-4 rounded-xl border border-gray-200">
+                <table class="table-modern w-full">
+                    <thead>
+                        <tr>
+                            <th class="rounded-tl-xl">Category</th>
+                            <th class="text-center">Score</th>
+                            <th class="rounded-tr-xl">Issues</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="font-semibold text-gray-800">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center mr-2">
+                                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                        </svg>
+                                    </div>
+                                    SEO
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="font-bold" :class="(auditResult?.seo_metadata?.score || 0) >= 4 ? 'text-green-600' : (auditResult?.seo_metadata?.score || 0) >= 3 ? 'text-yellow-600' : 'text-red-600'" 
+                                      x-text="(auditResult?.seo_metadata?.score || 0).toFixed(1) + '/5'"></span>
+                            </td>
+                            <td class="text-sm text-gray-600" x-text="getSeoIssues()"></td>
+                        </tr>
+                        <tr>
+                            <td class="font-semibold text-gray-800">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center mr-2">
+                                        <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                        </svg>
+                                    </div>
+                                    SSL Security
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="font-bold" :class="(auditResult?.ssl_certificate?.score || 0) >= 4 ? 'text-green-600' : (auditResult?.ssl_certificate?.score || 0) >= 3 ? 'text-yellow-600' : 'text-red-600'" 
+                                      x-text="(auditResult?.ssl_certificate?.score || 0).toFixed(1) + '/5'"></span>
+                            </td>
+                            <td class="text-sm text-gray-600" x-text="auditResult?.ssl_certificate?.is_valid ? 'Valid certificate' : 'SSL issues detected'"></td>
+                        </tr>
+                        <tr>
+                            <td class="font-semibold text-gray-800">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center mr-2">
+                                        <svg class="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                        </svg>
+                                    </div>
+                                    Speed
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="font-bold" :class="(auditResult?.load_speed?.score || 0) >= 4 ? 'text-green-600' : (auditResult?.load_speed?.score || 0) >= 3 ? 'text-yellow-600' : 'text-red-600'" 
+                                      x-text="(auditResult?.load_speed?.score || 0).toFixed(1) + '/5'"></span>
+                            </td>
+                            <td class="text-sm text-gray-600" x-text="'Load time: ' + (auditResult?.load_speed?.load_time_seconds || 0).toFixed(2) + 's'"></td>
+                        </tr>
+                        <tr>
+                            <td class="font-semibold text-gray-800">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center mr-2">
+                                        <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                                        </svg>
+                                    </div>
+                                    Responsiveness
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="font-bold" :class="(auditResult?.responsiveness?.score || 0) >= 4 ? 'text-green-600' : (auditResult?.responsiveness?.score || 0) >= 3 ? 'text-yellow-600' : 'text-red-600'" 
+                                      x-text="(auditResult?.responsiveness?.score || 0).toFixed(1) + '/5'"></span>
+                            </td>
+                            <td class="text-sm text-gray-600" x-text="auditResult?.responsiveness?.mobile_friendly ? 'Mobile-friendly' : 'Not mobile-optimized'"></td>
+                        </tr>
+                        <tr>
+                            <td class="font-semibold text-gray-800">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 rounded-lg bg-pink-100 flex items-center justify-center mr-2">
+                                        <svg class="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"></path>
+                                        </svg>
+                                    </div>
+                                    Social Links
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="font-bold" :class="(auditResult?.social_links?.score || 0) >= 4 ? 'text-green-600' : (auditResult?.social_links?.score || 0) >= 3 ? 'text-yellow-600' : 'text-red-600'" 
+                                      x-text="(auditResult?.social_links?.score || 0).toFixed(1) + '/5'"></span>
+                            </td>
+                            <td class="text-sm text-gray-600" x-text="(auditResult?.social_links?.platforms || []).length + ' platforms found'"></td>
+                        </tr>
+                        <tr>
+                            <td class="font-semibold text-gray-800">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center mr-2">
+                                        <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                        </svg>
+                                    </div>
+                                    Image Optimization
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="font-bold" :class="(auditResult?.image_alt_tags?.score || 0) >= 4 ? 'text-green-600' : (auditResult?.image_alt_tags?.score || 0) >= 3 ? 'text-yellow-600' : 'text-red-600'" 
+                                      x-text="(auditResult?.image_alt_tags?.score || 0).toFixed(1) + '/5'"></span>
+                            </td>
+                            <td class="text-sm text-gray-600" x-text="(auditResult?.image_alt_tags?.missing_alt || 0) + ' images missing alt text'"></td>
+                        </tr>
+                        <tr class="bg-gradient-to-r from-primary-50 to-accent-50">
+                            <td class="font-bold text-gray-800 rounded-bl-xl">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center mr-2">
+                                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                    </div>
+                                    Overall
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="text-lg font-bold" :class="(auditResult?.overall_score || 0) >= 4 ? 'text-green-600' : (auditResult?.overall_score || 0) >= 3 ? 'text-yellow-600' : 'text-red-600'" 
+                                      x-text="(auditResult?.overall_score || 0).toFixed(1) + '/5'"></span>
+                            </td>
+                            <td class="text-sm font-medium text-gray-700 rounded-br-xl" x-text="(auditResult?.recommendations?.length || 0) + ' recommendations'"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Rich Text Email Editor Modal -->
+    <div x-show="showEmailEditor" x-cloak 
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <div x-show="showEmailEditor"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 transform scale-95"
+             x-transition:enter-end="opacity-100 transform scale-100"
+             class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[95vh] overflow-hidden flex flex-col border border-gray-100">
+            <div class="p-5 border-b flex items-center justify-between bg-gradient-to-r from-primary-50 to-accent-50">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center mr-3 shadow-lg">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-800">Compose Outreach Email</h3>
+                </div>
+                <button @click="showEmailEditor = false" class="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="p-6 flex-1 overflow-y-auto">
+                <!-- Email Fields -->
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">To</label>
+                        <div class="flex items-center gap-2">
+                            <template x-if="emailForm.to">
+                                <div class="flex items-center flex-1">
+                                    <input type="email" x-model="emailForm.to" class="input-field flex-1" placeholder="recipient@example.com">
+                                    <span class="ml-2 text-green-500 p-2 bg-green-50 rounded-full">
+                                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                        </svg>
+                                    </span>
+                                </div>
+                            </template>
+                            <template x-if="!emailForm.to">
+                                <div class="flex items-center flex-1 gap-2">
+                                    <input type="email" x-model="emailForm.to" class="input-field flex-1" placeholder="No email found">
+                                    <button @click="crawlForEmail" class="btn-outline text-sm whitespace-nowrap flex items-center" :disabled="crawlingEmail">
+                                        <span x-show="!crawlingEmail" class="flex items-center">
+                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                            </svg>
+                                            Crawl for Email
+                                        </span>
+                                        <span x-show="crawlingEmail" class="flex items-center">
+                                            <svg class="animate-spin h-4 w-4 mr-1" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Crawling...
+                                        </span>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">From</label>
+                        <input type="email" x-model="emailForm.from" class="input-field" placeholder="your@email.com">
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Subject</label>
+                    <input type="text" x-model="emailForm.subject" class="input-field" placeholder="Email subject...">
+                </div>
+                
+                <!-- Generate with AI Button -->
+                <div class="mb-4">
+                    <button @click="generateEmailWithAI" class="btn-primary flex items-center" :disabled="generatingEmail">
+                        <span x-show="!generatingEmail" class="flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            Generate with AI
+                        </span>
+                        <span x-show="generatingEmail" class="flex items-center">
+                            <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Generating...
+                        </span>
+                    </button>
+                </div>
+                
+                <!-- Rich Text Editor Toolbar -->
+                <div class="border border-gray-200 rounded-t-xl bg-gradient-to-r from-gray-50 to-gray-100 p-3 flex flex-wrap gap-2">
+                    <!-- Font Style -->
+                    <div class="flex items-center border-r border-gray-300 pr-3 mr-1">
+                        <button @click="formatText('bold')" class="p-2 hover:bg-white hover:shadow-md rounded-lg transition-all duration-200" title="Bold">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 4h8a4 4 0 014 4 4 4 0 01-4 4H6V4zm0 8h9a4 4 0 014 4 4 4 0 01-4 4H6v-8z"></path></svg>
+                        </button>
+                        <button @click="formatText('italic')" class="p-2 hover:bg-white hover:shadow-md rounded-lg transition-all duration-200" title="Italic">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 4h4m-2 0v16m-4 0h8"></path></svg>
+                        </button>
+                        <button @click="formatText('underline')" class="p-2 hover:bg-white hover:shadow-md rounded-lg transition-all duration-200" title="Underline">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8v4a5 5 0 0010 0V8M5 20h14"></path></svg>
+                        </button>
+                        <button @click="formatText('strikeThrough')" class="p-2 hover:bg-white hover:shadow-md rounded-lg transition-all duration-200" title="Strikethrough">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"></path><path d="M10 5a2 2 0 00-2 2v1h4V7a2 2 0 00-2-2zM8 13v2a2 2 0 104 0v-2H8z"></path></svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Headings -->
+                    <div class="flex items-center border-r border-gray-300 pr-3 mr-1">
+                        <select @change="formatBlock($event.target.value); $event.target.value=''" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200">
+                            <option value="">Heading</option>
+                            <option value="h1">Heading 1</option>
+                            <option value="h2">Heading 2</option>
+                            <option value="h3">Heading 3</option>
+                            <option value="p">Normal</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Lists -->
+                    <div class="flex items-center border-r border-gray-300 pr-3 mr-1">
+                        <button @click="formatText('insertUnorderedList')" class="p-2 hover:bg-white hover:shadow-md rounded-lg transition-all duration-200" title="Bullet List">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path><circle cx="2" cy="6" r="1" fill="currentColor"></circle><circle cx="2" cy="12" r="1" fill="currentColor"></circle><circle cx="2" cy="18" r="1" fill="currentColor"></circle></svg>
+                        </button>
+                        <button @click="formatText('insertOrderedList')" class="p-2 hover:bg-gray-200 rounded" title="Numbered List">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 6h13M7 12h13M7 18h13"></path><text x="2" y="7" font-size="6" fill="currentColor">1</text><text x="2" y="13" font-size="6" fill="currentColor">2</text><text x="2" y="19" font-size="6" fill="currentColor">3</text></svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Text Color -->
+                    <div class="flex items-center border-r pr-2 mr-1">
+                        <label class="p-2 hover:bg-gray-200 rounded cursor-pointer relative" title="Text Color">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L11 6.477V16h2a1 1 0 110 2H7a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.616a1 1 0 01.894-1.79l1.599.8L9 4.323V3a1 1 0 011-1z"></path></svg>
+                            <input type="color" @input="applyTextColor($event.target.value)" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer" value="#000000">
+                        </label>
+                        <label class="p-2 hover:bg-gray-200 rounded cursor-pointer relative" title="Background Color">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v11a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"></path></svg>
+                            <input type="color" @input="applyBackgroundColor($event.target.value)" class="absolute inset-0 opacity-0 w-full h-full cursor-pointer" value="#FFFF00">
+                        </label>
+                    </div>
+                    
+                    <!-- Alignment -->
+                    <div class="flex items-center border-r pr-2 mr-1">
+                        <button @click="formatText('justifyLeft')" class="p-2 hover:bg-gray-200 rounded" title="Align Left">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h14"></path></svg>
+                        </button>
+                        <button @click="formatText('justifyCenter')" class="p-2 hover:bg-gray-200 rounded" title="Align Center">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M5 18h14"></path></svg>
+                        </button>
+                        <button @click="formatText('justifyRight')" class="p-2 hover:bg-gray-200 rounded" title="Align Right">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M6 18h14"></path></svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Undo/Redo -->
+                    <div class="flex items-center">
+                        <button @click="formatText('undo')" class="p-2 hover:bg-gray-200 rounded" title="Undo">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                        </button>
+                        <button @click="formatText('redo')" class="p-2 hover:bg-gray-200 rounded" title="Redo">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Editable Content Area -->
+                <div id="emailEditor" 
+                     contenteditable="true" 
+                     class="border border-t-0 border-gray-300 rounded-b-lg p-4 min-h-[300px] focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                     @input="emailForm.body = $el.innerHTML"
+                     style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;">
+                    <p>Start typing your email here...</p>
+                </div>
+            </div>
+            
+            <div class="p-4 border-t bg-gray-50 flex justify-end space-x-2">
+                <button @click="showEmailEditor = false" class="btn-secondary">Cancel</button>
+                <button @click="sendEmail" class="btn-primary" :disabled="sendingEmail">
+                    <span x-show="!sendingEmail">Send Email</span>
+                    <span x-show="sendingEmail">Sending...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Audits History -->
+    <div class="card mt-6">
+        <h3 class="text-lg font-semibold mb-4">Recent Audits</h3>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Website</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overall Score</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    <template x-for="audit in recentAudits" :key="audit.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3">
+                                <a :href="audit.url" target="_blank" class="text-blue-600 hover:text-blue-700" x-text="audit.url"></a>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                      :class="audit.overall_score >= 4 ? 'bg-green-100 text-green-800' : 
+                                              audit.overall_score >= 3 ? 'bg-yellow-100 text-yellow-800' : 
+                                              'bg-red-100 text-red-800'"
+                                      x-text="audit.overall_score.toFixed(1) + '/5'">
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-500" x-text="new Date(audit.timestamp).toLocaleString()"></td>
+                            <td class="px-4 py-3">
+                                <button @click="viewAudit(audit)" class="text-blue-600 hover:text-blue-700 text-sm">
+                                    View Details
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="recentAudits.length === 0">
+                        <td colspan="4" class="px-4 py-8 text-center text-gray-500">
+                            No audits yet. Run your first audit above.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function auditsData() {
+    return {
+        websiteUrl: '',
+        auditing: false,
+        auditResult: null,
+        recentAudits: [],
+        scoreDistChart: null,
+        radarChart: null,
+        extractingData: false,
+        businessData: null,
+        showEmailEditor: false,
+        generatingEmail: false,
+        sendingEmail: false,
+        crawlingEmail: false,
+        emailForm: {
+            to: '',
+            from: '',
+            subject: '',
+            body: ''
+        },
+        
+        async init() {
+            await this.loadRecentAudits();
+            
+            // Check if coming from businesses page with pre-filled URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const websiteParam = urlParams.get('website');
+            if (websiteParam) {
+                this.websiteUrl = websiteParam;
+                // Auto-run audit
+                await this.runQuickAudit();
+            }
+            
+            // Load business info from session if available
+            const savedBusiness = sessionStorage.getItem('auditBusiness');
+            if (savedBusiness) {
+                const business = JSON.parse(savedBusiness);
+                this.emailForm.to = business.email || '';
+                sessionStorage.removeItem('auditBusiness');
+            }
+        },
+        
+        async runQuickAudit() {
+            this.auditing = true;
+            this.auditResult = null;
+            
+            try {
+                const response = await fetch(`/api/v1/audits/quick/${encodeURIComponent(this.websiteUrl)}`);
+                
+                if (response.ok) {
+                    this.auditResult = await response.json();
+                    showToast('Audit completed!', 'success');
+                    
+                    // Store in recent audits
+                    await this.saveAuditLocally(this.auditResult);
+                    
+                    // Render charts
+                    this.$nextTick(() => {
+                        this.renderScoreDistributionChart();
+                        this.renderRadarChart();
+                    });
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Audit failed', 'error');
+                }
+            } catch (error) {
+                showToast('Audit failed: ' + error.message, 'error');
+            } finally {
+                this.auditing = false;
+            }
+        },
+        
+        async saveAuditLocally(audit) {
+            let audits = JSON.parse(localStorage.getItem('recentAudits') || '[]');
+            audits.unshift(audit);
+            audits = audits.slice(0, 20); // Keep only last 20
+            localStorage.setItem('recentAudits', JSON.stringify(audits));
+            this.recentAudits = audits;
+        },
+        
+        async loadRecentAudits() {
+            this.recentAudits = JSON.parse(localStorage.getItem('recentAudits') || '[]');
+        },
+        
+        viewAudit(audit) {
+            this.auditResult = audit;
+            this.websiteUrl = audit.url;
+            this.$nextTick(() => {
+                this.renderScoreDistributionChart();
+                this.renderRadarChart();
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+        
+        renderScoreDistributionChart() {
+            const canvas = document.getElementById('scoreDistributionChart');
+            if (!canvas || !this.auditResult) return;
+            
+            const ctx = canvas.getContext('2d');
+            
+            if (this.scoreDistChart) {
+                this.scoreDistChart.destroy();
+            }
+            
+            const r = this.auditResult;
+            
+            this.scoreDistChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['SEO', 'SSL', 'Speed', 'Responsive', 'Social', 'Images'],
+                    datasets: [{
+                        data: [
+                            r.seo_metadata?.score || 0,
+                            r.ssl_certificate?.score || 0,
+                            r.load_speed?.score || 0,
+                            r.responsiveness?.score || 0,
+                            r.social_links?.score || 0,
+                            r.image_alt_tags?.score || 0
+                        ],
+                        backgroundColor: [
+                            '#3B82F6', // blue
+                            '#10B981', // green
+                            '#F59E0B', // yellow
+                            '#8B5CF6', // purple
+                            '#EC4899', // pink
+                            '#6366F1'  // indigo
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.raw.toFixed(1) + '/5';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        },
+        
+        renderRadarChart() {
+            const canvas = document.getElementById('metricsRadarChart');
+            if (!canvas || !this.auditResult) return;
+            
+            const ctx = canvas.getContext('2d');
+            
+            if (this.radarChart) {
+                this.radarChart.destroy();
+            }
+            
+            const r = this.auditResult;
+            
+            this.radarChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['SEO', 'SSL', 'Speed', 'Responsive', 'Social', 'Images'],
+                    datasets: [{
+                        label: 'Score',
+                        data: [
+                            r.seo_metadata?.score || 0,
+                            r.ssl_certificate?.score || 0,
+                            r.load_speed?.score || 0,
+                            r.responsiveness?.score || 0,
+                            r.social_links?.score || 0,
+                            r.image_alt_tags?.score || 0
+                        ],
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgb(59, 130, 246)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(59, 130, 246)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 5,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        },
+        
+        getScoreColor(score) {
+            if (!score) return 'text-gray-400';
+            if (score >= 4) return 'text-green-600';
+            if (score >= 3) return 'text-yellow-600';
+            if (score >= 2) return 'text-orange-600';
+            return 'text-red-600';
+        },
+        
+        formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        },
+        
+        generateEmailFromAudit() {
+            // Store audit in session and redirect
+            sessionStorage.setItem('auditData', JSON.stringify(this.auditResult));
+            window.location.href = '/outreach';
+        },
+        
+        downloadReport() {
+            const dataStr = JSON.stringify(this.auditResult, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audit-report-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+        
+        // Business Data Extraction
+        async extractBusinessData() {
+            if (!this.auditResult?.url) {
+                showToast('Please run an audit first', 'warning');
+                return;
+            }
+            
+            this.extractingData = true;
+            this.businessData = null;
+            
+            try {
+                const response = await fetch('/api/v1/businesses/extract', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: this.auditResult.url })
+                });
+                
+                if (response.ok) {
+                    this.businessData = await response.json();
+                    this.businessData.website_url = this.auditResult.url;
+                    
+                    // Pre-fill email if contact info has email
+                    if (this.businessData?.contact_info?.email) {
+                        this.emailForm.to = this.businessData.contact_info.email;
+                    }
+                    
+                    showToast('Business data extracted!', 'success');
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Extraction failed', 'error');
+                }
+            } catch (error) {
+                showToast('Extraction failed: ' + error.message, 'error');
+            } finally {
+                this.extractingData = false;
+            }
+        },
+        
+        // Crawl website for email
+        async crawlForEmail() {
+            const url = this.auditResult?.url || this.websiteUrl;
+            if (!url) {
+                showToast('No website URL available', 'warning');
+                return;
+            }
+            
+            this.crawlingEmail = true;
+            
+            try {
+                const response = await fetch('/api/v1/businesses/crawl-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.emails && data.emails.length > 0) {
+                        this.emailForm.to = data.emails[0];
+                        showToast(`Found email: ${data.emails[0]}`, 'success');
+                    } else {
+                        showToast('No email found on website', 'warning');
+                    }
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Crawl failed', 'error');
+                }
+            } catch (error) {
+                showToast('Crawl failed: ' + error.message, 'error');
+            } finally {
+                this.crawlingEmail = false;
+            }
+        },
+        
+        copyBusinessData() {
+            if (!this.businessData) return;
+            
+            const text = `
+Website URL: ${this.businessData.website_url || '-'}
+Business Name: ${this.businessData.business_name || '-'}
+Industry: ${this.businessData.industry || '-'}
+Location: ${this.businessData.location || '-'}
+Core Offer: ${this.businessData.core_offer || '-'}
+Target Customers: ${this.businessData.target_customers || '-'}
+Business Goal: ${this.businessData.business_goal || '-'}
+Differentiator: ${this.businessData.differentiator || '-'}
+
+Website Scores:
+- SEO: ${(this.auditResult?.seo_metadata?.score || 0).toFixed(1)}/5
+- SSL: ${(this.auditResult?.ssl_certificate?.score || 0).toFixed(1)}/5
+- Speed: ${(this.auditResult?.load_speed?.score || 0).toFixed(1)}/5
+- Responsiveness: ${(this.auditResult?.responsiveness?.score || 0).toFixed(1)}/5
+- Social Links: ${(this.auditResult?.social_links?.score || 0).toFixed(1)}/5
+- Image Optimization: ${(this.auditResult?.image_alt_tags?.score || 0).toFixed(1)}/5
+- Overall: ${(this.auditResult?.overall_score || 0).toFixed(1)}/5
+            `.trim();
+            
+            navigator.clipboard.writeText(text);
+            showToast('Copied to clipboard!', 'success');
+        },
+        
+        getSeoIssues() {
+            const seo = this.auditResult?.seo_metadata;
+            if (!seo) return '-';
+            
+            const issues = [];
+            if (!seo.has_title) issues.push('Missing title');
+            if (!seo.has_meta_description) issues.push('Missing meta description');
+            if (!seo.has_h1) issues.push('Missing H1');
+            
+            return issues.length > 0 ? issues.join(', ') : 'No issues';
+        },
+        
+        // Rich Text Editor Functions
+        formatText(command) {
+            document.execCommand(command, false, null);
+            document.getElementById('emailEditor').focus();
+        },
+        
+        formatBlock(tag) {
+            if (tag) {
+                document.execCommand('formatBlock', false, tag);
+                document.getElementById('emailEditor').focus();
+            }
+        },
+        
+        applyTextColor(color) {
+            document.execCommand('foreColor', false, color);
+            document.getElementById('emailEditor').focus();
+        },
+        
+        applyBackgroundColor(color) {
+            document.execCommand('hiliteColor', false, color);
+            document.getElementById('emailEditor').focus();
+        },
+        
+        async generateEmailWithAI() {
+            this.generatingEmail = true;
+            
+            try {
+                // Build payload matching EmailGenerationRequest schema
+                const payload = {
+                    business_name: this.businessData?.business_name || 'Business',
+                    website_url: this.auditResult?.url || this.websiteUrl,
+                    industry: this.businessData?.industry || null,
+                    location: this.businessData?.location || null,
+                    target_audience: this.businessData?.target_customers || null,
+                    business_goal: this.businessData?.business_goal || null,
+                    seo_score: this.auditResult?.seo_metadata?.score || 0,
+                    ssl_score: this.auditResult?.ssl_certificate?.score || 0,
+                    load_speed_score: this.auditResult?.load_speed?.score || 0,
+                    responsiveness_score: this.auditResult?.responsiveness?.score || 0,
+                    social_links_score: this.auditResult?.social_links?.score || 0,
+                    image_alt_score: this.auditResult?.image_alt_tags?.score || 0,
+                    specific_issues: [],
+                    additional_notes: null
+                };
+                
+                const response = await fetch('/api/v1/outreach/generate-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Set subject (use first subject line from array)
+                    if (data.subject_lines && data.subject_lines.length > 0) {
+                        this.emailForm.subject = data.subject_lines[0];
+                    } else {
+                        this.emailForm.subject = 'Website Improvement Opportunity';
+                    }
+                    
+                    // Set body in editor (convert newlines to <br> or <p>)
+                    const emailEditor = document.getElementById('emailEditor');
+                    const emailBody = data.email_body || data.body || '';
+                    if (emailEditor && emailBody) {
+                        // Convert markdown-like formatting to HTML
+                        let htmlBody = emailBody
+                            // First convert bold (double asterisks) - do this before single asterisks
+                            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                            // Then convert italic (single asterisks)
+                            .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                            // Convert double newlines to paragraph breaks
+                            .replace(/\n\n/g, '</p><p>')
+                            // Convert single newlines to line breaks
+                            .replace(/\n/g, '<br>');
+                        
+                        emailEditor.innerHTML = '<p>' + htmlBody + '</p>';
+                        this.emailForm.body = emailEditor.innerHTML;
+                    }
+                    
+                    showToast('Email generated!', 'success');
+                } else {
+                    const error = await response.json();
+                    let errorMsg = 'Generation failed';
+                    if (error.detail) {
+                        if (typeof error.detail === 'string') {
+                            errorMsg = error.detail;
+                        } else if (Array.isArray(error.detail)) {
+                            errorMsg = error.detail.map(e => e.msg || JSON.stringify(e)).join(', ');
+                        } else {
+                            errorMsg = JSON.stringify(error.detail);
+                        }
+                    }
+                    showToast(errorMsg, 'error');
+                }
+            } catch (error) {
+                showToast('Generation failed: ' + (error.message || 'Unknown error'), 'error');
+            } finally {
+                this.generatingEmail = false;
+            }
+        },
+        
+        async sendEmail() {
+            if (!this.emailForm.to || !this.emailForm.subject) {
+                showToast('Please fill in recipient and subject', 'warning');
+                return;
+            }
+            
+            this.sendingEmail = true;
+            
+            try {
+                const response = await fetch('/api/v1/mail/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: this.emailForm.to,
+                        from: this.emailForm.from,
+                        subject: this.emailForm.subject,
+                        body_html: this.emailForm.body
+                    })
+                });
+                
+                if (response.ok) {
+                    showToast('Email sent successfully!', 'success');
+                    this.showEmailEditor = false;
+                    // Reset form
+                    this.emailForm = { to: '', from: '', subject: '', body: '' };
+                    document.getElementById('emailEditor').innerHTML = '<p>Start typing your email here...</p>';
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Failed to send email', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to send: ' + error.message, 'error');
+            } finally {
+                this.sendingEmail = false;
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div x-data="campaignsData()" x-init="init()" class="animate-fade-in">
+    <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-100 to-violet-200 flex items-center justify-center mr-4">
+                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800">Campaigns</h2>
+                <p class="text-sm text-gray-500">Manage your outreach campaigns</p>
+            </div>
+        </div>
+        <button @click="showCreateModal = true" class="btn-primary">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            New Campaign
+        </button>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="card hover:shadow-xl group">
+            <div class="flex items-center">
+                <div class="p-3 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600 mr-4 group-hover:scale-110 transition-transform duration-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 font-medium">Total Campaigns</p>
+                    <p class="text-2xl font-bold text-gray-800" x-text="stats.total_campaigns"></p>
+                </div>
+            </div>
+        </div>
+        <div class="card hover:shadow-xl group">
+            <div class="flex items-center">
+                <div class="p-3 rounded-xl bg-gradient-to-br from-green-100 to-emerald-200 text-green-600 mr-4 group-hover:scale-110 transition-transform duration-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 font-medium">Active</p>
+                    <p class="text-2xl font-bold text-green-600" x-text="stats.active_campaigns"></p>
+                </div>
+            </div>
+        </div>
+        <div class="card hover:shadow-xl group">
+            <div class="flex items-center">
+                <div class="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-200 text-blue-600 mr-4 group-hover:scale-110 transition-transform duration-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 font-medium">Emails Sent</p>
+                    <p class="text-2xl font-bold text-blue-600" x-text="stats.total_emails_sent"></p>
+                </div>
+            </div>
+        </div>
+        <div class="card hover:shadow-xl group">
+            <div class="flex items-center">
+                <div class="p-3 rounded-xl bg-gradient-to-br from-purple-100 to-violet-200 text-purple-600 mr-4 group-hover:scale-110 transition-transform duration-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 font-medium">Response Rate</p>
+                    <p class="text-2xl font-bold text-purple-600" x-text="stats.response_rate + '%'"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Campaigns List -->
+    <div class="card hover:shadow-xl">
+        <div class="overflow-x-auto rounded-xl border border-gray-200">
+            <table class="table-modern w-full">
+                <thead>
+                    <tr>
+                        <th class="rounded-tl-xl">Campaign</th>
+                        <th>Status</th>
+                        <th>Businesses</th>
+                        <th>Sent</th>
+                        <th>Opened</th>
+                        <th>Replied</th>
+                        <th class="rounded-tr-xl">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <template x-for="campaign in campaigns" :key="campaign.id">
+                        <tr>
+                            <td>
+                                <p class="font-semibold text-gray-800" x-text="campaign.name"></p>
+                                <p class="text-xs text-gray-500" x-text="campaign.description"></p>
+                            </td>
+                            <td>
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold"
+                                      :class="campaign.status === 'active' ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700' : 
+                                              campaign.status === 'paused' ? 'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-700' : 
+                                              campaign.status === 'completed' ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700' : 
+                                              'bg-gray-100 text-gray-700'"
+                                      x-text="campaign.status">
+                                </span>
+                            </td>
+                            <td class="text-sm font-medium" x-text="campaign.total_businesses || 0"></td>
+                            <td class="text-sm font-medium" x-text="campaign.emails_sent || 0"></td>
+                            <td class="text-sm font-medium" x-text="campaign.emails_opened || 0"></td>
+                            <td class="text-sm font-medium" x-text="campaign.replies_received || 0"></td>
+                            <td>
+                                <div class="flex space-x-1">
+                                    <button @click="viewCampaign(campaign)" class="px-2 py-1 text-primary-600 hover:bg-primary-50 rounded-lg text-sm font-medium transition-all">
+                                        View
+                                    </button>
+                                    <button x-show="campaign.status === 'draft' || campaign.status === 'paused'" 
+                                            @click="startCampaign(campaign)" 
+                                            class="px-2 py-1 text-green-600 hover:bg-green-50 rounded-lg text-sm font-medium transition-all">
+                                        Start
+                                    </button>
+                                    <button x-show="campaign.status === 'active'" 
+                                            @click="pauseCampaign(campaign)" 
+                                            class="px-2 py-1 text-yellow-600 hover:bg-yellow-50 rounded-lg text-sm font-medium transition-all">
+                                        Pause
+                                    </button>
+                                    <button @click="deleteCampaign(campaign)" class="px-2 py-1 text-red-500 hover:bg-red-50 rounded-lg text-sm font-medium transition-all">
+                                        Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="campaigns.length === 0">
+                        <td colspan="7" class="px-4 py-12 text-center">
+                            <div class="flex flex-col items-center">
+                                <div class="w-16 h-16 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mb-4">
+                                    <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                    </svg>
+                                </div>
+                                <p class="text-gray-500 mb-2">No campaigns yet</p>
+                                <button @click="showCreateModal = true" class="btn-primary text-sm">Create Your First Campaign</button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Create Campaign Modal -->
+    <div x-show="showCreateModal" x-cloak class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-semibold">Create New Campaign</h3>
+                    <button @click="showCreateModal = false" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form @submit.prevent="createCampaign" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
+                        <input type="text" x-model="newCampaign.name" class="input-field" required placeholder="e.g., Q1 Restaurant Outreach">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea x-model="newCampaign.description" class="input-field" rows="2" placeholder="Brief description of this campaign"></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Target Business Type</label>
+                        <input type="text" x-model="newCampaign.target_business_type" class="input-field" placeholder="e.g., restaurant, hotel, cafe">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Target Location</label>
+                        <input type="text" x-model="newCampaign.target_location" class="input-field" placeholder="e.g., New York, USA">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email Template</label>
+                        <textarea x-model="newCampaign.email_template" class="input-field" rows="5" placeholder="Use {{business_name}}, {{issues}} as variables"></textarea>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" x-model="newCampaign.auto_send" class="rounded text-blue-600">
+                        <span class="text-sm text-gray-700">Auto-send generated emails</span>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-2 pt-4">
+                        <button type="button" @click="showCreateModal = false" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-primary">Create Campaign</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Campaign Details Modal -->
+    <div x-show="selectedCampaign" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-semibold" x-text="selectedCampaign?.name"></h3>
+                    <button @click="selectedCampaign = null" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Campaign Stats -->
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gray-50 p-3 rounded-lg text-center">
+                        <p class="text-2xl font-bold" x-text="selectedCampaign?.total_businesses || 0"></p>
+                        <p class="text-xs text-gray-500">Businesses</p>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded-lg text-center">
+                        <p class="text-2xl font-bold text-blue-600" x-text="selectedCampaign?.emails_sent || 0"></p>
+                        <p class="text-xs text-gray-500">Sent</p>
+                    </div>
+                    <div class="bg-green-50 p-3 rounded-lg text-center">
+                        <p class="text-2xl font-bold text-green-600" x-text="selectedCampaign?.emails_opened || 0"></p>
+                        <p class="text-xs text-gray-500">Opened</p>
+                    </div>
+                    <div class="bg-purple-50 p-3 rounded-lg text-center">
+                        <p class="text-2xl font-bold text-purple-600" x-text="selectedCampaign?.replies_received || 0"></p>
+                        <p class="text-xs text-gray-500">Replies</p>
+                    </div>
+                </div>
+                
+                <!-- Businesses in Campaign -->
+                <h4 class="font-semibold mb-2">Businesses in Campaign</h4>
+                <div class="max-h-64 overflow-y-auto border rounded-lg">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Business</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Email Status</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">Sent At</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <template x-for="b in (selectedCampaign?.businesses || [])" :key="b.id">
+                                <tr>
+                                    <td class="px-3 py-2 text-sm" x-text="b.business_name"></td>
+                                    <td class="px-3 py-2">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                              :class="b.email_status === 'sent' ? 'bg-blue-100 text-blue-800' : 
+                                                      b.email_status === 'opened' ? 'bg-green-100 text-green-800' : 
+                                                      b.email_status === 'replied' ? 'bg-purple-100 text-purple-800' : 
+                                                      'bg-gray-100 text-gray-800'"
+                                              x-text="b.email_status || 'pending'">
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-2 text-sm text-gray-500" x-text="b.sent_at ? new Date(b.sent_at).toLocaleString() : '-'"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function campaignsData() {
+    return {
+        campaigns: [],
+        stats: {
+            total_campaigns: 0,
+            active_campaigns: 0,
+            total_emails_sent: 0,
+            response_rate: 0
+        },
+        showCreateModal: false,
+        selectedCampaign: null,
+        newCampaign: {
+            name: '',
+            description: '',
+            target_business_type: '',
+            target_location: '',
+            email_template: '',
+            auto_send: false
+        },
+        
+        async init() {
+            await this.loadCampaigns();
+            this.calculateStats();
+        },
+        
+        async loadCampaigns() {
+            try {
+                const response = await fetch('/api/v1/campaigns');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.campaigns = data.campaigns || [];
+                }
+            } catch (error) {
+                console.error('Failed to load campaigns:', error);
+            }
+        },
+        
+        calculateStats() {
+            this.stats.total_campaigns = this.campaigns.length;
+            this.stats.active_campaigns = this.campaigns.filter(c => c.status === 'active').length;
+            this.stats.total_emails_sent = this.campaigns.reduce((sum, c) => sum + (c.emails_sent || 0), 0);
+            
+            const totalSent = this.stats.total_emails_sent;
+            const totalReplies = this.campaigns.reduce((sum, c) => sum + (c.replies_received || 0), 0);
+            this.stats.response_rate = totalSent > 0 ? Math.round((totalReplies / totalSent) * 100) : 0;
+        },
+        
+        async createCampaign() {
+            try {
+                const response = await fetch('/api/v1/campaigns', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.newCampaign)
+                });
+                
+                if (response.ok) {
+                    showToast('Campaign created!', 'success');
+                    this.showCreateModal = false;
+                    this.newCampaign = { name: '', description: '', target_business_type: '', target_location: '', email_template: '', auto_send: false };
+                    await this.loadCampaigns();
+                    this.calculateStats();
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Failed to create campaign', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to create campaign', 'error');
+            }
+        },
+        
+        viewCampaign(campaign) {
+            this.selectedCampaign = campaign;
+        },
+        
+        async startCampaign(campaign) {
+            try {
+                const response = await fetch(`/api/v1/campaigns/${campaign.id}/start`, { method: 'POST' });
+                if (response.ok) {
+                    campaign.status = 'active';
+                    showToast('Campaign started!', 'success');
+                    this.calculateStats();
+                }
+            } catch (error) {
+                showToast('Failed to start campaign', 'error');
+            }
+        },
+        
+        async pauseCampaign(campaign) {
+            try {
+                const response = await fetch(`/api/v1/campaigns/${campaign.id}/pause`, { method: 'POST' });
+                if (response.ok) {
+                    campaign.status = 'paused';
+                    showToast('Campaign paused', 'info');
+                    this.calculateStats();
+                }
+            } catch (error) {
+                showToast('Failed to pause campaign', 'error');
+            }
+        },
+        
+        async deleteCampaign(campaign) {
+            if (!confirm('Are you sure you want to delete this campaign?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/campaigns/${campaign.id}`, { method: 'DELETE' });
+                if (response.ok) {
+                    this.campaigns = this.campaigns.filter(c => c.id !== campaign.id);
+                    showToast('Campaign deleted', 'success');
+                    this.calculateStats();
+                }
+            } catch (error) {
+                showToast('Failed to delete campaign', 'error');
+            }
+        }
+    };
+}
+</script>
+{% endblock %}
