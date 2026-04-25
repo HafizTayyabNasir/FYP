@@ -717,43 +717,45 @@ function businessesData() {
             this.discoveryProgress = { done: 0, total: toDiscover.length, found: 0 };
             showToast(`🔍 Discovering websites for ${toDiscover.length} businesses...`, 'info');
             
-            try {
-                for (const business of toDiscover) {
-                    try {
-                        const response = await fetch('/api/v1/businesses/discover-website-single', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                business_name: business.business_name,
-                                city: this.searchForm.city,
-                                country: this.searchForm.country
-                            })
-                        });
-                        
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data.website) {
-                                business.website = data.website;
-                                business.website_discovered = true;
-                                this.discoveryProgress.found++;
-                            }
-                            if (data.email) business.email = data.email;
-                            if (data.phone) business.phone = data.phone;
-                            if (data.all_emails_found?.length) business.all_emails_found = data.all_emails_found;
-                            if (data.facebook) business.facebook = data.facebook;
-                            if (data.instagram) business.instagram = data.instagram;
-                            if (data.twitter) business.twitter = data.twitter;
-                            if (data.linkedin) business.linkedin = data.linkedin;
-                            if (data.youtube) business.youtube = data.youtube;
-                            if (data.tiktok) business.tiktok = data.tiktok;
+            const discoverOne = async (business) => {
+                try {
+                    const response = await fetch('/api/v1/businesses/discover-website-single', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            business_name: business.business_name,
+                            city: this.searchForm.city,
+                            country: this.searchForm.country
+                        })
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.website) {
+                            business.website = data.website;
+                            business.website_discovered = true;
+                            this.discoveryProgress.found++;
                         }
-                    } catch (e) {
-                        // Skip individual failures
+                        if (data.email) business.email = data.email;
+                        if (data.phone) business.phone = data.phone;
+                        if (data.all_emails_found?.length) business.all_emails_found = data.all_emails_found;
+                        if (data.facebook) business.facebook = data.facebook;
+                        if (data.instagram) business.instagram = data.instagram;
+                        if (data.twitter) business.twitter = data.twitter;
+                        if (data.linkedin) business.linkedin = data.linkedin;
+                        if (data.youtube) business.youtube = data.youtube;
+                        if (data.tiktok) business.tiktok = data.tiktok;
                     }
-                    
-                    this.discoveryProgress.done++;
+                } catch (e) { /* skip */ }
+                this.discoveryProgress.done++;
+            };
+
+            try {
+                const CONCURRENCY = 3;
+                for (let i = 0; i < toDiscover.length; i += CONCURRENCY) {
+                    const batch = toDiscover.slice(i, i + CONCURRENCY);
+                    await Promise.all(batch.map(b => discoverOne(b)));
                 }
-                
+
                 const { found, total } = this.discoveryProgress;
                 if (found > 0) {
                     showToast(`🌐 Discovered ${found} out of ${total} websites!`, 'success');

@@ -221,8 +221,11 @@ def _pick_best_phone(phones: List[str]) -> Optional[str]:
     return phones[0]
 
 
-def _scrape_with_httpx(base_url: str, timeout: int = 8) -> ScrapedContacts:
-    """Fast scraper using httpx — no browser startup cost."""
+async def _scrape_with_httpx_async(base_url: str, timeout: int = 10) -> ScrapedContacts:
+    """
+    Fast async scraper — fetches pages concurrently (max 5 at a time).
+    Raises ValueError if site is JS-heavy or if homepage could not be fetched.
+    """
     import httpx
 
     if not base_url.startswith(("http://", "https://")):
@@ -230,40 +233,60 @@ def _scrape_with_httpx(base_url: str, timeout: int = 8) -> ScrapedContacts:
 
     parsed = urlparse(base_url)
     origin = f"{parsed.scheme}://{parsed.netloc}"
+    pages = [base_url] + [origin.rstrip('/') + p for p in CONTACT_PAGES]
 
     contacts = ScrapedContacts()
     all_emails: Set[str] = set()
     all_phones: Set[str] = set()
 
-    pages = [base_url] + [origin.rstrip('/') + p for p in CONTACT_PAGES]
+    semaphore = asyncio.Semaphore(5)  # max 5 concurrent requests
 
-    with httpx.Client(headers=HEADERS, timeout=timeout, follow_redirects=True, verify=False) as client:
-        js_heavy = False
-        for url in pages:
-            try:
-                r = client.get(url)
-                if r.status_code >= 400:
-                    continue
-                html = r.text
-                if url == base_url and _is_js_heavy(html):
-                    js_heavy = True
-                    break
-                all_emails.update(_extract_emails(html))
-                all_phones.update(_extract_phones(html))
-                _extract_social(html, contacts)
-                contacts.pages_crawled.append(url)
-            except Exception as e:
-                logger.debug(f"httpx error on {url}: {e}")
-                continue
+    async with httpx.AsyncClient(
+        headers=HEADERS,
+        timeout=httpx.Timeout(timeout),
+        follow_redirects=True,
+        verify=False,
+    ) as client:
+        async def fetch(url: str):
+            async with semaphore:
+                try:
+                    r = await client.get(url)
+                    if r.status_code < 400:
+                        return url, r.text
+                except Exception as e:
+                    logger.debug(f"httpx error on {url}: {e}")
+                return url, None
 
-    if js_heavy:
+        results = await asyncio.gather(*[fetch(u) for u in pages])
+
+    # Homepage must succeed — if not, fall back to Playwright
+    homepage_html = next((html for url, html in results if url == base_url and html), None)
+    if not homepage_html:
+        raise ValueError("Homepage unreachable — needs Playwright")
+    if _is_js_heavy(homepage_html):
         raise ValueError("JS-heavy site — needs Playwright")
+
+    for url, html in results:
+        if not html:
+            continue
+        all_emails.update(_extract_emails(html))
+        all_phones.update(_extract_phones(html))
+        _extract_social(html, contacts)
+        contacts.pages_crawled.append(url)
 
     contacts.emails = list(all_emails)
     contacts.phones = list(all_phones)
     contacts.best_email = _pick_best_email(contacts.emails)
     contacts.best_phone = _pick_best_phone(contacts.phones)
     return contacts
+
+
+def _scrape_with_httpx(base_url: str, timeout: int = 10) -> ScrapedContacts:
+    """Sync wrapper — spawns a fresh event loop in a worker thread."""
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        future = ex.submit(asyncio.run, _scrape_with_httpx_async(base_url, timeout))
+        return future.result()
 
 
 class WebsiteScraperSync:
@@ -341,11 +364,18 @@ def scrape_website_sync(url: str, timeout: int = 15000, max_pages: int = 20) -> 
         return scraper.scrape(url)
 
 
-async def scrape_website_for_contacts(url: str, timeout: int = 15000, max_pages: int = 3) -> ScrapedContacts:
-    import concurrent.futures
-    loop = asyncio.get_event_loop()
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        return await loop.run_in_executor(executor, lambda: scrape_website_sync(url, timeout, max_pages))
+async def scrape_website_for_contacts(url: str, timeout: int = 15000, max_pages: int = 20) -> ScrapedContacts:
+    """Async entry point — tries concurrent httpx first, Playwright fallback."""
+    try:
+        return await _scrape_with_httpx_async(url, timeout=min(timeout // 1000, 10))
+    except Exception as e:
+        if not isinstance(e, ValueError):
+            logger.debug(f"async httpx failed ({e}), falling back to Playwright")
+        import concurrent.futures
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor() as ex:
+            scraper = WebsiteScraperSync(timeout=timeout, max_pages=max_pages)
+            return await loop.run_in_executor(ex, scraper.scrape, url)
 
 
 # Alias for backward compatibility

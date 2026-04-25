@@ -685,7 +685,7 @@ async def discover_website_single(data: dict):
     Used for progressive row-by-row discovery from the UI.
     """
     from app.services.osm.website_discovery import discover_website
-    from app.services.scraping.website_scraper import scrape_website_sync
+    from app.services.scraping.website_scraper import scrape_website_for_contacts
 
     name = data.get("business_name", "")
     city = data.get("city", "")
@@ -703,10 +703,7 @@ async def discover_website_single(data: dict):
     contacts = {}
     if url:
         try:
-            scraped = await loop.run_in_executor(
-                executor,
-                lambda: scrape_website_sync(url),
-            )
+            scraped = await scrape_website_for_contacts(url)
             contacts = {
                 "email": scraped.best_email,
                 "phone": scraped.best_phone,
