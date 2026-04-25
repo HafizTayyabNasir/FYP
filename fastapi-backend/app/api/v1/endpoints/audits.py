@@ -149,7 +149,9 @@ async def quick_audit(url: str):
         has_description = bool(seo_meta.get("description")) if seo_meta else ("missing meta description" not in seo_flaws_str)
         has_h1 = bool(seo_meta.get("h1")) if seo_meta else ("missing h1" not in seo_flaws_str)
         has_canonical = bool(seo_meta.get("canonical")) if seo_meta else ("missing canonical" not in seo_flaws_str)
-        
+        has_og_tags = bool(seo_meta.get("og_title") and seo_meta.get("og_description")) if seo_meta else False
+        has_twitter_cards = bool(seo_meta.get("twitter_title") or seo_meta.get("twitter_description")) if seo_meta else False
+
         return {
             "url": result.website_url,
             "website_url": result.website_url,
@@ -166,6 +168,8 @@ async def quick_audit(url: str):
                 "has_meta_description": has_description,
                 "has_h1": has_h1,
                 "has_canonical": has_canonical,
+                "has_og_tags": has_og_tags,
+                "has_twitter_cards": has_twitter_cards,
             },
             
             # SSL Certificate - template expects ssl_certificate

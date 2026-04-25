@@ -1,298 +1,306 @@
 """
-Mail Chat Endpoint - Email inbox and conversation management
+Mail endpoints — inbox sync (Gmail API), send, and thread management.
 """
 import json
 import uuid
 from datetime import datetime
-from typing import List, Optional
 from pathlib import Path
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from app.core.config import settings
+
 router = APIRouter()
 
-# Simple file-based storage
 DATA_DIR = Path(__file__).parent.parent.parent.parent.parent / "data"
 THREADS_FILE = DATA_DIR / "email_threads.json"
 MESSAGES_FILE = DATA_DIR / "email_messages.json"
 
 
-class SendMessageRequest(BaseModel):
-    thread_id: Optional[str] = None
-    to_email: str
-    to_name: Optional[str] = None
-    subject: str
-    body: str
-
-
-class ReplyRequest(BaseModel):
-    body: str
-
+# ── helpers ──────────────────────────────────────────────────────────────────
 
 def _ensure_data_dir():
     DATA_DIR.mkdir(exist_ok=True)
-    if not THREADS_FILE.exists():
-        THREADS_FILE.write_text("[]")
-    if not MESSAGES_FILE.exists():
-        MESSAGES_FILE.write_text("[]")
+    for f in (THREADS_FILE, MESSAGES_FILE):
+        if not f.exists():
+            f.write_text("[]")
 
 
-def _load_threads() -> List[dict]:
+def _load(path: Path) -> list:
     _ensure_data_dir()
     try:
-        return json.loads(THREADS_FILE.read_text())
-    except:
+        return json.loads(path.read_text())
+    except Exception:
         return []
 
 
-def _save_threads(threads: List[dict]):
+def _save(path: Path, data: list):
     _ensure_data_dir()
-    THREADS_FILE.write_text(json.dumps(threads, indent=2, default=str))
+    path.write_text(json.dumps(data, indent=2, default=str))
 
 
-def _load_messages() -> List[dict]:
-    _ensure_data_dir()
+def _gmail_configured() -> bool:
+    return bool(
+        settings.GMAIL_CLIENT_ID
+        and settings.GMAIL_CLIENT_SECRET
+        and settings.GMAIL_REFRESH_TOKEN
+    )
+
+
+def _smtp_configured() -> bool:
+    return bool(settings.SMTP_USER and settings.SMTP_PASSWORD)
+
+
+def _imap_configured() -> bool:
+    return bool(settings.SMTP_USER and settings.SMTP_PASSWORD)
+
+
+def _gmail_creds() -> dict:
+    return {
+        "client_id": settings.GMAIL_CLIENT_ID,
+        "client_secret": settings.GMAIL_CLIENT_SECRET,
+        "refresh_token": settings.GMAIL_REFRESH_TOKEN,
+    }
+
+
+# ── request models ────────────────────────────────────────────────────────────
+
+class SendRequest(BaseModel):
+    to_email: str
+    subject: str
+    body: str
+    reply_to_id: Optional[str] = None
+    to_name: Optional[str] = None
+    html_body: Optional[str] = None
+
+
+# ── inbox: sync + messages ────────────────────────────────────────────────────
+
+@router.post("/sync")
+async def sync_inbox():
+    """Pull latest emails from Gmail API and store locally."""
+    if _gmail_configured():
+        try:
+            import asyncio
+            import concurrent.futures
+            from app.services.email.gmail_client import sync_inbox as _sync
+
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as ex:
+                result = await loop.run_in_executor(
+                    ex, lambda: _sync(**_gmail_creds())
+                )
+            return {"success": True, **result}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Gmail sync failed: {e}")
+
+    if not _imap_configured():
+        raise HTTPException(
+            status_code=400,
+            detail="Email not configured. Add GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN (or SMTP_USER/PASSWORD + IMAP_HOST) to .env"
+        )
+
     try:
-        return json.loads(MESSAGES_FILE.read_text())
-    except:
-        return []
+        from app.services.email.imap_client import sync_inbox as _sync
+        import asyncio
+        import concurrent.futures
+
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor() as ex:
+            result = await loop.run_in_executor(
+                ex, lambda: _sync(
+                    host=settings.IMAP_HOST,
+                    port=settings.IMAP_PORT,
+                    user=settings.SMTP_USER,
+                    password=settings.SMTP_PASSWORD,
+                )
+            )
+        return {"success": True, **result}
+    except ConnectionError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync failed: {e}")
 
 
-def _save_messages(messages: List[dict]):
-    _ensure_data_dir()
-    MESSAGES_FILE.write_text(json.dumps(messages, indent=2, default=str))
+@router.get("/messages")
+async def get_messages(folder: str = Query("inbox")):
+    """Return emails for inbox or sent folder."""
+    if folder == "sent":
+        all_msgs = _load(MESSAGES_FILE)
+        sent = [
+            {
+                "id": m["id"],
+                "from_name": settings.SMTP_FROM_NAME,
+                "from_email": m.get("from_email") or settings.SMTP_USER or "",
+                "to_email": m.get("to_email", ""),
+                "subject": m.get("subject", ""),
+                "body": m.get("body", ""),
+                "preview": (m.get("body") or "")[:120],
+                "date": m.get("sent_at") or m.get("created_at", ""),
+                "read": True,
+                "folder": "sent",
+                "attachments": [],
+            }
+            for m in all_msgs
+            if m.get("direction") == "outbound"
+        ]
+        sent.sort(key=lambda x: x["date"], reverse=True)
+        return {"messages": sent, "total": len(sent)}
 
+    if _gmail_configured():
+        from app.services.email.gmail_client import get_stored_inbox
+        inbox = get_stored_inbox()
+    else:
+        from app.services.email.imap_client import get_stored_inbox
+        inbox = get_stored_inbox()
+
+    inbox.sort(key=lambda x: x.get("date", ""), reverse=True)
+    return {"messages": inbox, "total": len(inbox)}
+
+
+# ── send ──────────────────────────────────────────────────────────────────────
+
+@router.post("/send")
+async def send_message(request: SendRequest):
+    """Send an email and record it in the sent store."""
+    import asyncio
+    import concurrent.futures
+
+    loop = asyncio.get_event_loop()
+
+    if _gmail_configured():
+        try:
+            from app.services.email.gmail_client import send_email
+
+            with concurrent.futures.ThreadPoolExecutor() as ex:
+                result = await loop.run_in_executor(
+                    ex, lambda: send_email(
+                        **_gmail_creds(),
+                        from_name=settings.SMTP_FROM_NAME,
+                        to_email=request.to_email,
+                        subject=request.subject,
+                        body=request.body,
+                        html_body=request.html_body,
+                    )
+                )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Gmail send failed: {e}")
+    elif _smtp_configured():
+        from app.services.email.smtp_sender import send_email
+
+        with concurrent.futures.ThreadPoolExecutor() as ex:
+            result = await loop.run_in_executor(
+                ex, lambda: send_email(
+                    host=settings.SMTP_HOST,
+                    port=settings.SMTP_PORT,
+                    user=settings.SMTP_USER,
+                    password=settings.SMTP_PASSWORD,
+                    from_name=settings.SMTP_FROM_NAME,
+                    to_email=request.to_email,
+                    subject=request.subject,
+                    body=request.body,
+                    html_body=request.html_body,
+                )
+            )
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Send failed"))
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Email not configured. Add GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN to .env"
+        )
+
+    messages = _load(MESSAGES_FILE)
+    message_id = result.get("message_id") or str(uuid.uuid4())
+    messages.append({
+        "id": message_id,
+        "direction": "outbound",
+        "from_email": settings.SMTP_FROM_EMAIL or settings.SMTP_USER or "",
+        "to_email": request.to_email,
+        "to_name": request.to_name,
+        "subject": request.subject,
+        "body": request.body,
+        "reply_to_id": request.reply_to_id,
+        "status": "sent",
+        "sent_at": result.get("sent_at") or datetime.utcnow().isoformat(),
+        "created_at": datetime.utcnow().isoformat(),
+    })
+    _save(MESSAGES_FILE, messages)
+
+    return {"success": True, "message_id": message_id, "sent_at": result.get("sent_at")}
+
+
+# ── thread management ────────────────────────────────────────────────────────
 
 @router.get("/threads")
 async def list_threads(
     status: Optional[str] = None,
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100)
+    per_page: int = Query(20, ge=1, le=100),
 ):
-    """
-    List all email threads (conversations).
-    """
-    threads = _load_threads()
-    
+    threads = _load(THREADS_FILE)
     if status:
         threads = [t for t in threads if t.get("status") == status]
-    
-    # Sort by last_message_at descending
     threads.sort(key=lambda x: x.get("last_message_at", ""), reverse=True)
-    
-    # Pagination
     total = len(threads)
     start = (page - 1) * per_page
-    end = start + per_page
-    paginated = threads[start:end]
-    
-    return {
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "threads": paginated
-    }
+    return {"total": total, "page": page, "per_page": per_page, "threads": threads[start: start + per_page]}
 
 
 @router.get("/threads/{thread_id}")
 async def get_thread(thread_id: str):
-    """
-    Get a specific thread with all messages.
-    """
-    threads = _load_threads()
-    messages = _load_messages()
-    
-    thread = None
-    for t in threads:
-        if t.get("id") == thread_id:
-            thread = t
-            break
-    
+    threads = _load(THREADS_FILE)
+    thread = next((t for t in threads if t.get("id") == thread_id), None)
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
-    
-    # Get messages for this thread
-    thread_messages = [m for m in messages if m.get("thread_id") == thread_id]
-    thread_messages.sort(key=lambda x: x.get("created_at", ""))
-    
-    return {
-        **thread,
-        "messages": thread_messages
-    }
-
-
-@router.post("/send")
-async def send_message(request: SendMessageRequest):
-    """
-    Send a new email message.
-    Creates a new thread if thread_id is not provided.
-    """
-    import smtplib
-    from email.mime.text import MIMEText
-    from email.mime.multipart import MIMEMultipart
-    from app.core.config import settings
-    
-    threads = _load_threads()
-    messages = _load_messages()
-    
-    # Create or get thread
-    thread_id = request.thread_id
-    if not thread_id:
-        thread_id = str(uuid.uuid4())
-        new_thread = {
-            "id": thread_id,
-            "subject": request.subject,
-            "recipient_email": request.to_email,
-            "recipient_name": request.to_name,
-            "status": "active",
-            "message_count": 0,
-            "created_at": datetime.utcnow().isoformat(),
-            "last_message_at": datetime.utcnow().isoformat()
-        }
-        threads.append(new_thread)
-    
-    # Create message
-    message_id = str(uuid.uuid4())
-    new_message = {
-        "id": message_id,
-        "thread_id": thread_id,
-        "direction": "outbound",
-        "from_email": settings.SMTP_FROM_EMAIL or settings.SMTP_USER,
-        "to_email": request.to_email,
-        "subject": request.subject,
-        "body": request.body,
-        "status": "pending",
-        "created_at": datetime.utcnow().isoformat()
-    }
-    
-    # Try to send via SMTP
-    if settings.SMTP_USER and settings.SMTP_PASSWORD:
-        try:
-            msg = MIMEMultipart()
-            msg["Subject"] = request.subject
-            msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL or settings.SMTP_USER}>"
-            msg["To"] = request.to_email
-            
-            msg.attach(MIMEText(request.body, "plain"))
-            
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-                server.starttls()
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                server.send_message(msg)
-            
-            new_message["status"] = "sent"
-            new_message["sent_at"] = datetime.utcnow().isoformat()
-            
-        except Exception as e:
-            new_message["status"] = "failed"
-            new_message["error"] = str(e)
-    else:
-        new_message["status"] = "queued"
-    
-    messages.append(new_message)
-    
-    # Update thread
-    for i, t in enumerate(threads):
-        if t.get("id") == thread_id:
-            threads[i]["message_count"] = threads[i].get("message_count", 0) + 1
-            threads[i]["last_message_at"] = datetime.utcnow().isoformat()
-            break
-    
-    _save_threads(threads)
-    _save_messages(messages)
-    
-    return {
-        "thread_id": thread_id,
-        "message_id": message_id,
-        "status": new_message["status"],
-        "error": new_message.get("error")
-    }
-
-
-@router.post("/threads/{thread_id}/reply")
-async def reply_to_thread(thread_id: str, request: ReplyRequest):
-    """
-    Reply to an existing thread.
-    """
-    threads = _load_threads()
-    
-    thread = None
-    for t in threads:
-        if t.get("id") == thread_id:
-            thread = t
-            break
-    
-    if not thread:
-        raise HTTPException(status_code=404, detail="Thread not found")
-    
-    return await send_message(SendMessageRequest(
-        thread_id=thread_id,
-        to_email=thread["recipient_email"],
-        to_name=thread.get("recipient_name"),
-        subject=f"Re: {thread['subject']}",
-        body=request.body
-    ))
+    messages = [m for m in _load(MESSAGES_FILE) if m.get("thread_id") == thread_id]
+    messages.sort(key=lambda x: x.get("created_at", ""))
+    return {**thread, "messages": messages}
 
 
 @router.put("/threads/{thread_id}/status")
 async def update_thread_status(thread_id: str, status: str):
-    """
-    Update thread status (active, archived, starred).
-    """
-    threads = _load_threads()
-    
+    threads = _load(THREADS_FILE)
     for i, t in enumerate(threads):
         if t.get("id") == thread_id:
             threads[i]["status"] = status
             threads[i]["updated_at"] = datetime.utcnow().isoformat()
-            _save_threads(threads)
+            _save(THREADS_FILE, threads)
             return threads[i]
-    
     raise HTTPException(status_code=404, detail="Thread not found")
 
 
 @router.delete("/threads/{thread_id}")
 async def delete_thread(thread_id: str):
-    """
-    Delete a thread and its messages.
-    """
-    threads = _load_threads()
-    messages = _load_messages()
-    
-    original_count = len(threads)
-    threads = [t for t in threads if t.get("id") != thread_id]
-    
-    if len(threads) == original_count:
+    threads = _load(THREADS_FILE)
+    filtered = [t for t in threads if t.get("id") != thread_id]
+    if len(filtered) == len(threads):
         raise HTTPException(status_code=404, detail="Thread not found")
-    
-    messages = [m for m in messages if m.get("thread_id") != thread_id]
-    
-    _save_threads(threads)
-    _save_messages(messages)
-    
+    messages = [m for m in _load(MESSAGES_FILE) if m.get("thread_id") != thread_id]
+    _save(THREADS_FILE, filtered)
+    _save(MESSAGES_FILE, messages)
     return {"message": "Thread deleted"}
 
 
 @router.get("/stats")
 async def get_mail_stats():
-    """
-    Get email statistics.
-    """
-    threads = _load_threads()
-    messages = _load_messages()
-    
+    messages = _load(MESSAGES_FILE)
+
+    if _gmail_configured():
+        from app.services.email.gmail_client import get_stored_inbox
+    else:
+        from app.services.email.imap_client import get_stored_inbox
+
+    inbox = get_stored_inbox()
     outbound = [m for m in messages if m.get("direction") == "outbound"]
-    inbound = [m for m in messages if m.get("direction") == "inbound"]
-    sent = [m for m in outbound if m.get("status") == "sent"]
-    failed = [m for m in outbound if m.get("status") == "failed"]
-    
     return {
-        "total_threads": len(threads),
-        "active_threads": sum(1 for t in threads if t.get("status") == "active"),
-        "total_messages": len(messages),
-        "outbound_messages": len(outbound),
-        "inbound_messages": len(inbound),
-        "sent_messages": len(sent),
-        "failed_messages": len(failed)
+        "inbox_total": len(inbox),
+        "inbox_unread": sum(1 for e in inbox if not e.get("read")),
+        "sent_total": len(outbound),
+        "sent_failed": sum(1 for m in outbound if m.get("status") == "failed"),
+        "gmail_configured": _gmail_configured(),
+        "smtp_configured": _smtp_configured(),
+        "imap_configured": _imap_configured(),
     }

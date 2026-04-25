@@ -7,7 +7,7 @@ from functools import lru_cache
 from typing import Optional, List
 
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, model_validator
 
 
 class Settings(BaseSettings):
@@ -47,7 +47,13 @@ class Settings(BaseSettings):
     GROK_API_KEY: Optional[str] = Field(default=None)
     GROK_API_BASE_URL: str = "https://api.x.ai/v1"
     
-    # SMTP Configuration
+    # Gmail API Configuration (preferred over SMTP/IMAP)
+    # Run scripts/gmail_auth.py once to get GMAIL_REFRESH_TOKEN
+    GMAIL_CLIENT_ID: Optional[str] = Field(default=None)
+    GMAIL_CLIENT_SECRET: Optional[str] = Field(default=None)
+    GMAIL_REFRESH_TOKEN: Optional[str] = Field(default=None)
+
+    # SMTP Configuration (fallback when Gmail API is not configured)
     SMTP_HOST: str = Field(default="smtp.gmail.com")
     SMTP_PORT: int = 587
     SMTP_USER: Optional[str] = Field(default=None)
@@ -63,6 +69,15 @@ class Settings(BaseSettings):
     TEMPLATES_DIR: Path = Path(__file__).parent.parent / "templates"
     STATIC_DIR: Path = Path(__file__).parent.parent / "static"
     
+    @model_validator(mode="after")
+    def _remap_groq_key(self):
+        # If user put their Groq key (gsk_...) under GROK_API_KEY by mistake,
+        # move it to GROQ_API_KEY automatically.
+        if not self.GROQ_API_KEY and self.GROK_API_KEY and self.GROK_API_KEY.startswith("gsk_"):
+            self.GROQ_API_KEY = self.GROK_API_KEY
+            self.GROK_API_KEY = None
+        return self
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

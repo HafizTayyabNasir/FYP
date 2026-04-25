@@ -155,83 +155,59 @@ def check_seo_metadata(url: str):
 # Function to rate SEO metadata completeness (0-5)
 def rate_seo_metadata(metadata):
     """
-    Rate SEO Metadata based on:
-    - Presence of key tags
-    - Correctness of metadata
+    Rate SEO Metadata with weighted scoring:
+      Core SEO  (3.5 pts): title 1.0, description 1.0, h1 0.75, canonical 0.75
+      Open Graph (1.0 pts): 0.25 each for og:title, og:description, og:image, og:url
+      Twitter Cards (0.5 pts): ~0.167 each for twitter:title, twitter:description, twitter:image
     """
-    score = 0
+    score = 0.0
     flaws = []
 
-    # Check if key SEO elements are present
-    if metadata["title"]:
-        score += 0.5
+    # ── Core SEO (3.5 pts) ────────────────────────────────────────────────────
+    if metadata.get("title"):
+        score += 1.0
     else:
         flaws.append("Missing title tag.")
 
-    if metadata["description"]:
-        score += 0.5
+    if metadata.get("description"):
+        score += 1.0
     else:
         flaws.append("Missing meta description.")
 
-    if metadata["keywords"]:
-        score += 0.5
-    else:
-        flaws.append("Missing meta keywords.")
-
-    if metadata["og_title"]:
-        score += 0.5
-    else:
-        flaws.append("Missing Open Graph title (og:title).")
-
-    if metadata["og_description"]:
-        score += 0.5
-    else:
-        flaws.append("Missing Open Graph description (og:description).")
-
-    if metadata["og_image"]:
-        score += 0.5
-    else:
-        flaws.append("Missing Open Graph image (og:image).")
-
-    if metadata["og_url"]:
-        score += 0.5
-    else:
-        flaws.append("Missing Open Graph URL (og:url).")
-
-    if metadata["twitter_title"]:
-        score += 0.5
-    else:
-        flaws.append("Missing Twitter card title (twitter:title).")
-
-    if metadata["twitter_description"]:
-        score += 0.5
-    else:
-        flaws.append("Missing Twitter card description (twitter:description).")
-
-    if metadata["twitter_image"]:
-        score += 0.5
-    else:
-        flaws.append("Missing Twitter card image (twitter:image).")
-
-    if metadata["canonical"]:
-        score += 0.5
-    else:
-        flaws.append("Missing canonical link.")
-
-    # H1 tag check
     if metadata.get("h1"):
-        score += 0.5
+        score += 0.75
     else:
         flaws.append("Missing H1 tag.")
 
-    # Penalize if the meta keywords are missing (they still matter, even if not as much)
-    if not metadata["keywords"]:
-        score -= 0.5  # Penalize for missing keywords
+    if metadata.get("canonical"):
+        score += 0.75
+    else:
+        flaws.append("Missing canonical link.")
 
-    # Cap the score at 5 and ensure it's not negative
-    score = max(0, min(score, 5))
+    # ── Open Graph (1.0 pts) ──────────────────────────────────────────────────
+    og_fields = {
+        "og_title": "og:title",
+        "og_description": "og:description",
+        "og_image": "og:image",
+        "og_url": "og:url",
+    }
+    missing_og = [label for key, label in og_fields.items() if not metadata.get(key)]
+    score += (4 - len(missing_og)) * 0.25
+    if missing_og:
+        flaws.append(f"Missing Open Graph tags: {', '.join(missing_og)}.")
 
-    return score, flaws
+    # ── Twitter Cards (0.5 pts) ───────────────────────────────────────────────
+    twitter_fields = {
+        "twitter_title": "twitter:title",
+        "twitter_description": "twitter:description",
+        "twitter_image": "twitter:image",
+    }
+    missing_tw = [label for key, label in twitter_fields.items() if not metadata.get(key)]
+    score += (3 - len(missing_tw)) * (0.5 / 3)
+    if missing_tw:
+        flaws.append(f"Missing Twitter Card tags: {', '.join(missing_tw)}.")
+
+    return round(min(max(score, 0), 5), 1), flaws
 
 # Main function
 def main():

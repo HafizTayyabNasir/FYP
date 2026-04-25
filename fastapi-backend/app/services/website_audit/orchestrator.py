@@ -352,15 +352,16 @@ class WebsiteAuditOrchestrator:
                 platform = platform_name(link)
                 if platform not in platforms:
                     platforms.append(platform)
-                
-                if state == "WORKING":
+
+                # RESTRICTED/SUSPECT_BLOCK = bot-protected (LinkedIn, TikTok, etc.) — not broken
+                if state in ("WORKING", "RESTRICTED", "SUSPECT_BLOCK"):
                     accessible += 1
                 else:
                     broken += 1
-                    flaws.append(f"Broken {platform} link")
-            
+                    flaws.append(f"Broken {platform} link (unreachable)")
+
             found = len(links)
-            
+
             # Calculate score
             if found == 0:
                 score = 0
@@ -369,7 +370,7 @@ class WebsiteAuditOrchestrator:
                 score = 1
             elif found < 3:
                 score = 2
-                flaws.append("Few social media links")
+                flaws.append("Few social media links (fewer than 3)")
             elif broken > 0:
                 score = 3
             else:

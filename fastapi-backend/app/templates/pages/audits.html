@@ -141,10 +141,20 @@
                         <span :class="auditResult?.seo_metadata?.has_h1 ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full'"
                               x-text="auditResult?.seo_metadata?.has_h1 ? '✓ Found' : '✗ Missing'"></span>
                     </div>
-                    <div class="flex justify-between items-center py-1">
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
                         <span class="text-gray-600">Canonical URL</span>
                         <span :class="auditResult?.seo_metadata?.has_canonical ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full'"
                               x-text="auditResult?.seo_metadata?.has_canonical ? '✓ Found' : '✗ Missing'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span class="text-gray-600">Open Graph Tags</span>
+                        <span :class="auditResult?.seo_metadata?.has_og_tags ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full'"
+                              x-text="auditResult?.seo_metadata?.has_og_tags ? '✓ Found' : '✗ Missing'"></span>
+                    </div>
+                    <div class="flex justify-between items-center py-1">
+                        <span class="text-gray-600">Twitter Cards</span>
+                        <span :class="auditResult?.seo_metadata?.has_twitter_cards ? 'text-green-600 bg-green-50 px-2 py-0.5 rounded-full' : 'text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full'"
+                              x-text="auditResult?.seo_metadata?.has_twitter_cards ? '✓ Found' : '✗ Missing'"></span>
                     </div>
                 </div>
                 <div class="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
