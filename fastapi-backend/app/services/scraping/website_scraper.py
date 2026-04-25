@@ -55,8 +55,17 @@ JUNK_EMAIL_PATTERNS = [
     r"support@wix", r"@wixpress", r"@sentry", r"@cloudflare",
 ]
 
-# Only check the 3 most valuable pages — homepage, contact, about
-CONTACT_PAGES = ["/contact", "/contact-us", "/about", "/about-us"]
+# All common contact/about page URL variations
+CONTACT_PAGES = [
+    "/contact", "/contact-us", "/contactus", "/contact_us",
+    "/contact-me", "/contacts", "/contact-info", "/contact-information",
+    "/get-in-touch", "/getintouch", "/reach-us", "/reach-out",
+    "/connect", "/connect-with-us", "/find-us", "/visit-us",
+    "/about", "/about-us", "/aboutus", "/about_us",
+    "/about-me", "/our-story", "/our-team", "/who-we-are",
+    "/location", "/locations", "/our-location", "/store", "/stores",
+    "/info", "/information", "/impressum", "/imprint",
+]
 
 SOCIAL_PATTERNS = {
     "facebook": r'https?://(?:www\.)?(?:facebook\.com|fb\.com)/(?!(?:tr|plugins|share|login|dialog|sharer|photo|video|groups|events|pages/create)(?:/|$))([a-zA-Z0-9._%-]+)/?(?:\?[^"\'<>\s]*)?',
@@ -243,9 +252,6 @@ def _scrape_with_httpx(base_url: str, timeout: int = 8) -> ScrapedContacts:
                 all_phones.update(_extract_phones(html))
                 _extract_social(html, contacts)
                 contacts.pages_crawled.append(url)
-                # Stop early if we have everything
-                if all_emails and contacts.facebook or contacts.instagram:
-                    break
             except Exception as e:
                 logger.debug(f"httpx error on {url}: {e}")
                 continue
@@ -318,7 +324,7 @@ class WebsiteScraperSync:
         return contacts
 
 
-def scrape_website_sync(url: str, timeout: int = 15000, max_pages: int = 3) -> ScrapedContacts:
+def scrape_website_sync(url: str, timeout: int = 15000, max_pages: int = 20) -> ScrapedContacts:
     """
     Scrape a website for contacts.
     Tries fast httpx first; falls back to Playwright for JS-heavy sites.

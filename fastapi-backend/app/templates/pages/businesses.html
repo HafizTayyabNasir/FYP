@@ -226,18 +226,27 @@
                                         Details
                                     </button>
                                     <!-- Crawl button -->
-                                    <button @click="crawlWebsite(business, true)" 
+                                    <button @click="crawlWebsite(business, true)"
                                             class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors"
-                                            :class="(!business.website || business.email || crawlingId === business.id) 
-                                                    ? 'text-gray-400 bg-gray-100 cursor-not-allowed' 
+                                            :class="(!business.website || (business.email && business.phone && (business.facebook || business.instagram || business.twitter || business.linkedin)) || crawlingId === business.id)
+                                                    ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                                                    : business.crawled ? 'text-green-700 bg-green-50 hover:bg-green-100'
                                                     : 'text-orange-700 bg-orange-50 hover:bg-orange-100'"
-                                            :disabled="!business.website || business.email || crawlingId === business.id">
-                                        <template x-if="crawlingId !== business.id">
+                                            :disabled="!business.website || (business.email && business.phone && (business.facebook || business.instagram || business.twitter || business.linkedin)) || crawlingId === business.id">
+                                        <template x-if="crawlingId !== business.id && !business.crawled">
                                             <span class="flex items-center">
                                                 <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
                                                 </svg>
                                                 Crawl
+                                            </span>
+                                        </template>
+                                        <template x-if="crawlingId !== business.id && business.crawled">
+                                            <span class="flex items-center">
+                                                <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                                </svg>
+                                                Crawled
                                             </span>
                                         </template>
                                         <template x-if="crawlingId === business.id">
@@ -373,18 +382,27 @@
                                         Details
                                     </button>
                                     <!-- Crawl button -->
-                                    <button @click="crawlWebsite(business)" 
+                                    <button @click="crawlWebsite(business)"
                                             class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors"
-                                            :class="(!business.website || business.email || crawlingId === business.id) 
-                                                    ? 'text-gray-400 bg-gray-100 cursor-not-allowed' 
+                                            :class="(!business.website || (business.email && business.phone && (business.facebook || business.instagram || business.twitter || business.linkedin)) || crawlingId === business.id)
+                                                    ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                                                    : business.crawled ? 'text-green-700 bg-green-50 hover:bg-green-100'
                                                     : 'text-orange-700 bg-orange-50 hover:bg-orange-100'"
-                                            :disabled="!business.website || business.email || crawlingId === business.id">
-                                        <template x-if="crawlingId !== business.id">
+                                            :disabled="!business.website || (business.email && business.phone && (business.facebook || business.instagram || business.twitter || business.linkedin)) || crawlingId === business.id">
+                                        <template x-if="crawlingId !== business.id && !business.crawled">
                                             <span class="flex items-center">
                                                 <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
                                                 </svg>
                                                 Crawl
+                                            </span>
+                                        </template>
+                                        <template x-if="crawlingId !== business.id && business.crawled">
+                                            <span class="flex items-center">
+                                                <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                                </svg>
+                                                Crawled
                                             </span>
                                         </template>
                                         <template x-if="crawlingId === business.id">
@@ -812,7 +830,8 @@ function businessesData() {
         },
         
         async crawlWebsite(business, isSearchResult = false) {
-            if (!business.website || business.email) return;
+            const allFound = business.email && business.phone && (business.facebook || business.instagram || business.twitter || business.linkedin);
+            if (!business.website || allFound) return;
             
             this.crawlingId = business.id;
             showToast('🔍 Crawling website with Playwright (JS rendering)...', 'info');
@@ -870,18 +889,14 @@ function businessesData() {
                         foundItems.push('💼 LinkedIn');
                     }
                     
+                    business.crawled = true;
                     if (foundItems.length > 0) {
                         const pagesInfo = data.pages_crawled || data.pages_checked || 0;
                         const method = data.method === 'playwright' ? '🎭' : '📡';
                         showToast(`${method} Found: ${foundItems.join(', ')} (${pagesInfo} pages)`, 'success');
                     } else {
                         const pagesInfo = data.pages_crawled || data.pages_checked || 0;
-                        let msg = `⚠️ No contact info found (searched ${pagesInfo} pages)`;
-                        if (data.playwright_error) {
-                            msg += ` [Playwright failed: ${data.playwright_error.substring(0, 50)}...]`;
-                        }
-                        showToast(msg, 'warning');
-                        console.log('Crawl response:', data);
+                        showToast(`⚠️ No contact info found (searched ${pagesInfo} pages)`, 'warning');
                     }
                     
                     // Reload saved businesses if it was a saved one
