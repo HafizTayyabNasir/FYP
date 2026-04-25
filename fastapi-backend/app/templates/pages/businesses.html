@@ -88,10 +88,10 @@
                     Save All to Database
                 </button>
                 <!-- Discover Websites button -->
-                <button @click="discoverWebsites" 
+                <button @click="discoverWebsites"
                         class="btn-primary text-xs px-3 py-1.5 flex items-center"
                         x-show="searchResults?.results?.length > 0"
-                        :disabled="discovering">
+                        :disabled="discovering || crawlingAll">
                     <template x-if="!discovering">
                         <span class="flex items-center">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,6 +107,32 @@
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
                             <span x-text="discoveryProgress ? `${discoveryProgress.found}/${discoveryProgress.done} of ${discoveryProgress.total}` : 'Discovering...'"></span>
+                        </span>
+                    </template>
+                </button>
+                <!-- Crawl All Websites button -->
+                <button @click="crawlAllWebsites"
+                        class="text-xs px-3 py-1.5 flex items-center rounded-lg font-medium transition-colors border"
+                        :class="discoveryDone && !crawlingAll
+                            ? 'bg-orange-50 text-orange-700 hover:bg-orange-100 border-orange-200'
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'"
+                        x-show="searchResults?.results?.some(b => b.website)"
+                        :disabled="!discoveryDone || crawlingAll || discovering">
+                    <template x-if="!crawlingAll">
+                        <span class="flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            Crawl All Websites
+                        </span>
+                    </template>
+                    <template x-if="crawlingAll">
+                        <span class="flex items-center">
+                            <svg class="animate-spin h-4 w-4 mr-1" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span x-text="crawlProgress ? `${crawlProgress.done}/${crawlProgress.total} crawled` : 'Crawling...'"></span>
                         </span>
                     </template>
                 </button>
@@ -631,6 +657,9 @@ function businessesData() {
         crawlingId: null,
         discovering: false,
         discoveryProgress: null,
+        crawlingAll: false,
+        crawlProgress: null,
+        discoveryDone: false,
         filter: {
             has_email: '',
             has_audit: ''
@@ -677,6 +706,7 @@ function businessesData() {
         
         async searchBusinesses() {
             this.searching = true;
+            this.discoveryDone = false;
             try {
                 const response = await fetch('/api/v1/osm/search', {
                     method: 'POST',
@@ -767,9 +797,70 @@ function businessesData() {
             } finally {
                 this.discovering = false;
                 this.discoveryProgress = null;
+                this.discoveryDone = true;
             }
         },
         
+        async crawlAllWebsites() {
+            if (!this.searchResults?.results) return;
+
+            const toCrawl = this.searchResults.results.filter(b => {
+                if (!b.website) return false;
+                const allFound = b.email && b.phone && (b.facebook || b.instagram || b.twitter || b.linkedin);
+                return !allFound && !b.crawled;
+            });
+
+            if (toCrawl.length === 0) {
+                showToast('All websites already crawled or fully complete!', 'info');
+                return;
+            }
+
+            this.crawlingAll = true;
+            this.crawlProgress = { done: 0, total: toCrawl.length, found: 0 };
+            showToast(`🔍 Crawling ${toCrawl.length} websites for contact info...`, 'info');
+
+            const crawlOne = async (business) => {
+                try {
+                    const response = await fetch('/api/v1/businesses/crawl-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: business.website, use_playwright: true })
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        let found = false;
+                        if (data.email) { business.email = data.email; found = true; }
+                        if (data.phone) { business.phone = data.phone; found = true; }
+                        if (data.all_emails_found?.length) business.all_emails_found = data.all_emails_found;
+                        if (data.facebook) { business.facebook = data.facebook; found = true; }
+                        if (data.instagram) { business.instagram = data.instagram; found = true; }
+                        if (data.twitter) { business.twitter = data.twitter; found = true; }
+                        if (data.linkedin) { business.linkedin = data.linkedin; found = true; }
+                        if (data.youtube) business.youtube = data.youtube;
+                        if (data.tiktok) business.tiktok = data.tiktok;
+                        business.crawled = true;
+                        if (found) this.crawlProgress.found++;
+                    }
+                } catch (e) { /* skip */ }
+                this.crawlProgress.done++;
+            };
+
+            try {
+                const CONCURRENCY = 3;
+                for (let i = 0; i < toCrawl.length; i += CONCURRENCY) {
+                    const batch = toCrawl.slice(i, i + CONCURRENCY);
+                    await Promise.all(batch.map(b => crawlOne(b)));
+                }
+                const { found, total } = this.crawlProgress;
+                showToast(`✅ Crawl complete! Found contact info for ${found} of ${total} websites.`, found > 0 ? 'success' : 'warning');
+            } catch (error) {
+                showToast('Crawl failed: ' + error.message, 'error');
+            } finally {
+                this.crawlingAll = false;
+                this.crawlProgress = null;
+            }
+        },
+
         async saveAllResults() {
             try {
                 const response = await fetch('/api/v1/businesses/save', {

@@ -92,28 +92,78 @@ def _is_js_heavy(html: str) -> bool:
     return False
 
 
+def _decode_html_entities(text: str) -> str:
+    """Decode common HTML entities used to obfuscate emails."""
+    return (text
+        .replace('&#64;', '@').replace('&#x40;', '@').replace('&amp;#64;', '@')
+        .replace('&#46;', '.').replace('&#x2e;', '.')
+        .replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+        .replace('\u0040', '@').replace('\u002e', '.')
+    )
+
+
+def _decode_cf_email(encoded: str) -> str:
+    """Decode Cloudflare email obfuscation (/cdn-cgi/l/email-protection#HEX)."""
+    try:
+        r = int(encoded[:2], 16)
+        return ''.join(chr(int(encoded[i:i+2], 16) ^ r) for i in range(2, len(encoded), 2))
+    except Exception:
+        return ''
+
+
 def _extract_emails(content: str) -> Set[str]:
     emails: Set[str] = set()
 
-    patterns = [
+    # Decode HTML entities before scanning
+    decoded = _decode_html_entities(content)
+
+    # 1. Standard patterns on decoded content
+    raw_patterns = [
         r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}',
         r'mailto:([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})',
-        r'data-[a-z-]*email[a-z-]*=["\']([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})',
-        r'([a-zA-Z0-9._%+\-]+)%40([a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})',
+        r'data-[a-z-]*(?:email|mail|cfemail)[a-z-]*=["\']([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})',
     ]
+    for i, pattern in enumerate(raw_patterns):
+        for match in re.findall(pattern, decoded, re.IGNORECASE):
+            e = (match if isinstance(match, str) else match[0]).strip().strip('"\'').lower().replace('mailto:', '')
+            if _is_valid_email(e):
+                emails.add(e)
 
-    for i, pattern in enumerate(patterns):
-        matches = re.findall(pattern, content, re.IGNORECASE)
-        for match in matches:
-            if i == 3:  # URL-encoded: tuple (local, domain)
-                email = f"{match[0]}@{match[1]}"
-            else:
-                email = match if isinstance(match, str) else match[0]
-            email = email.strip().strip('"').strip("'").lower().replace('mailto:', '')
-            if _is_valid_email(email):
-                emails.add(email)
+    # 2. URL-encoded @ (%40)
+    for local, domain in re.findall(r'([a-zA-Z0-9._%+\-]+)%40([a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})', content, re.IGNORECASE):
+        e = f"{local}@{domain}".lower()
+        if _is_valid_email(e):
+            emails.add(e)
 
-    # JSON-LD structured data
+    # 3. Cloudflare email protection
+    for cf_hex in re.findall(r'data-cfemail=["\']([0-9a-fA-F]+)["\']', content):
+        e = _decode_cf_email(cf_hex).lower()
+        if _is_valid_email(e):
+            emails.add(e)
+    for cf_hex in re.findall(r'/cdn-cgi/l/email-protection#([0-9a-fA-F]+)', content):
+        e = _decode_cf_email(cf_hex).lower()
+        if _is_valid_email(e):
+            emails.add(e)
+
+    # 4. Obfuscated text: name [at] domain.com / name (at) domain / name AT domain DOT com
+    obfuscated = re.findall(
+        r'([a-zA-Z0-9._%+\-]+)\s*[\[\({\s]?(?:at|AT|@)\s*[\]\)}\s]?\s*([a-zA-Z0-9.\-]+)\s*[\[\({\s]?(?:dot|DOT|\.)\s*[\]\)}\s]?\s*([a-zA-Z]{2,})',
+        decoded
+    )
+    for local, domain_part, tld in obfuscated:
+        e = f"{local}@{domain_part}.{tld}".lower()
+        if _is_valid_email(e):
+            emails.add(e)
+
+    # 5. Meta tags: <meta name="email" content="...">
+    for m in re.findall(r'<meta[^>]+name=["\'](?:email|contact)["\'][^>]+content=["\']([^"\']+)["\']', content, re.IGNORECASE):
+        if _is_valid_email(m.lower()):
+            emails.add(m.lower())
+    for m in re.findall(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\'](?:email|contact)["\']', content, re.IGNORECASE):
+        if _is_valid_email(m.lower()):
+            emails.add(m.lower())
+
+    # 6. JSON-LD / Schema.org structured data
     for block in re.findall(r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', content, re.IGNORECASE | re.DOTALL):
         try:
             data = json.loads(block)
@@ -122,6 +172,12 @@ def _extract_emails(content: str) -> Set[str]:
             for m in re.findall(r'"email"\s*:\s*"([^"]+@[^"]+)"', block):
                 if _is_valid_email(m):
                     emails.add(m.lower())
+
+    # 7. Plain text after stripping tags (catches emails rendered as text nodes)
+    text_only = re.sub(r'<[^>]+>', ' ', decoded)
+    for m in re.findall(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', text_only):
+        if _is_valid_email(m.lower()):
+            emails.add(m.lower())
 
     return emails
 
@@ -364,10 +420,27 @@ def scrape_website_sync(url: str, timeout: int = 15000, max_pages: int = 20) -> 
         return scraper.scrape(url)
 
 
-async def scrape_website_for_contacts(url: str, timeout: int = 15000, max_pages: int = 20) -> ScrapedContacts:
-    """Async entry point — tries concurrent httpx first, Playwright fallback."""
+def _ddg_email_search(domain: str) -> Optional[str]:
+    """Search DuckDuckGo for a business email when crawl finds nothing."""
     try:
-        return await _scrape_with_httpx_async(url, timeout=min(timeout // 1000, 10))
+        from ddgs import DDGS
+        query = f'email contact "@{domain}"'
+        with DDGS() as ddgs:
+            for result in ddgs.text(query, max_results=5):
+                text = (result.get('body', '') + ' ' + result.get('title', ''))
+                for m in re.findall(r'[a-zA-Z0-9._%+\-]+@' + re.escape(domain), text, re.IGNORECASE):
+                    if _is_valid_email(m.lower()):
+                        return m.lower()
+    except Exception as e:
+        logger.debug(f"DDG email search failed: {e}")
+    return None
+
+
+async def scrape_website_for_contacts(url: str, timeout: int = 15000, max_pages: int = 20) -> ScrapedContacts:
+    """Async entry point — tries concurrent httpx first, Playwright fallback, DDG email fallback."""
+    contacts = None
+    try:
+        contacts = await _scrape_with_httpx_async(url, timeout=min(timeout // 1000, 10))
     except Exception as e:
         if not isinstance(e, ValueError):
             logger.debug(f"async httpx failed ({e}), falling back to Playwright")
@@ -375,7 +448,22 @@ async def scrape_website_for_contacts(url: str, timeout: int = 15000, max_pages:
         loop = asyncio.get_event_loop()
         with concurrent.futures.ThreadPoolExecutor() as ex:
             scraper = WebsiteScraperSync(timeout=timeout, max_pages=max_pages)
-            return await loop.run_in_executor(ex, scraper.scrape, url)
+            contacts = await loop.run_in_executor(ex, scraper.scrape, url)
+
+    # If still no email, try DuckDuckGo search for domain email
+    if contacts and not contacts.best_email:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lstrip('www.')
+        if domain:
+            loop = asyncio.get_event_loop()
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as ex:
+                found = await loop.run_in_executor(ex, _ddg_email_search, domain)
+            if found:
+                contacts.best_email = found
+                contacts.emails = [found]
+
+    return contacts
 
 
 # Alias for backward compatibility
