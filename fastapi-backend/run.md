@@ -6,7 +6,6 @@ Ensure Python 3.8+ is installed on your system.
 ## Installation
 
 ### 1. Create Virtual Environment
-```bash
 python -m venv venv
 ```
 
