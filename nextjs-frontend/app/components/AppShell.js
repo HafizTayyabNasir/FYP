@@ -60,6 +60,8 @@ export default function AppShell({ children }) {
 
   function logout() {
     localStorage.removeItem('access_token');
+    localStorage.removeItem('user_name');
+    sessionStorage.removeItem('huntBusinessesState');
     window.dispatchEvent(new Event('storage'));
     router.replace('/login');
   }

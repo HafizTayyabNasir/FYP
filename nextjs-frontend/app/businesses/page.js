@@ -45,6 +45,34 @@ export default function BusinessesPage() {
   // Tab state
   const [activeTab, setActiveTab] = useState('search');
 
+  // Load state from sessionStorage on mount
+  useEffect(() => {
+    const savedState = sessionStorage.getItem('huntBusinessesState');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        if (parsed.query) setQuery(parsed.query);
+        if (parsed.location) setLocation(parsed.location);
+        if (parsed.radius) setRadius(parsed.radius);
+        if (parsed.results) setResults(parsed.results);
+        if (parsed.total) setTotal(parsed.total);
+        if (parsed.activeTab) setActiveTab(parsed.activeTab);
+      } catch (e) {
+        console.error('Failed to parse saved search state', e);
+      }
+    }
+  }, []);
+
+  // Save state to sessionStorage when it changes
+  useEffect(() => {
+    // Only save if we have some meaningful state to save (avoids overwriting with empty on initial mount)
+    if (query || location || results.length > 0) {
+      sessionStorage.setItem('huntBusinessesState', JSON.stringify({
+        query, location, radius, results, total, activeTab
+      }));
+    }
+  }, [query, location, radius, results, total, activeTab]);
+
   const resultsRef = useRef([]);
   useEffect(() => {
     resultsRef.current = results;

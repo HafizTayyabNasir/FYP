@@ -76,6 +76,7 @@ export default function PublicShell({ children }) {
         setMobileMenuOpen(false);
         localStorage.removeItem('access_token');
         localStorage.removeItem('user_name');
+        sessionStorage.removeItem('huntBusinessesState');
         window.dispatchEvent(new Event('storage'));
         router.replace('/login');
       } else {
@@ -203,6 +204,7 @@ export default function PublicShell({ children }) {
                             setDropdownOpen(false);
                             localStorage.removeItem('access_token');
                             localStorage.removeItem('user_name');
+                            sessionStorage.removeItem('huntBusinessesState');
                             window.dispatchEvent(new Event('storage'));
                             router.replace('/');
                           }}
@@ -313,6 +315,7 @@ export default function PublicShell({ children }) {
                           setMobileMenuOpen(false);
                           localStorage.removeItem('access_token');
                           localStorage.removeItem('user_name');
+                          sessionStorage.removeItem('huntBusinessesState');
                           window.dispatchEvent(new Event('storage'));
                           router.replace('/');
                         }}
