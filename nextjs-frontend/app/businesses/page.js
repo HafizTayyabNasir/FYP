@@ -516,7 +516,7 @@ export default function BusinessesPage() {
                   </thead>
                   <tbody>
                     {results.map((biz, i) => (
-                      <tr key={i} className={`border-b border-slate-200/80 dark:border-white/[0.06] hover:bg-slate-50 dark:bg-white/[0.03] transition-colors ${i % 2 === 0 ? 'bg-slate-50 dark:bg-white/[0.02]' : 'bg-white dark:bg-white/[0.01]'}`}>
+                      <tr key={i} className={`border-b border-slate-200/80 dark:border-white/[0.06] hover:bg-slate-50 dark:hover:bg-white/[0.06] transition-colors ${i % 2 === 0 ? 'bg-slate-50 dark:bg-white/[0.02]' : 'bg-white dark:bg-white/[0.01]'}`}>
                         <td className="px-3 py-3">
                           <p className="font-medium text-slate-900 dark:text-white">{biz.business_name || biz.name || biz.display_name || '-'}</p>
                           <p className="text-xs text-slate-500 dark:text-[#8E8BA3]">{biz.category || ''}</p>
@@ -616,7 +616,7 @@ export default function BusinessesPage() {
                 </thead>
                 <tbody>
                   {businesses.map((biz, i) => (
-                    <tr key={biz.id} className={`border-b border-slate-200/80 dark:border-white/[0.06] hover:bg-slate-50 dark:bg-white/[0.03] transition-colors ${i % 2 === 0 ? 'bg-slate-50 dark:bg-white/[0.02]' : 'bg-white dark:bg-white/[0.01]'}`}>
+                    <tr key={biz.id} className={`border-b border-slate-200/80 dark:border-white/[0.06] hover:bg-slate-50 dark:hover:bg-white/[0.06] transition-colors ${i % 2 === 0 ? 'bg-slate-50 dark:bg-white/[0.02]' : 'bg-white dark:bg-white/[0.01]'}`}>
                       <td className="px-3 py-3">
                         <p className="font-medium text-slate-900 dark:text-white">{biz.business_name}</p>
                         <p className="text-xs text-slate-500 dark:text-[#8E8BA3]">{biz.city || ''}</p>
