@@ -11,12 +11,12 @@ from app.core.config import settings
 EMAIL_AGENT_NAME = "Elvion Solutions Outreach Email Specialist"
 
 EMAIL_AGENT_SYSTEM_INSTRUCTIONS = """
-You are Elvion Solutions Outreach Email Specialist, an expert cold outreach + consultative email writer for Elvion Solutions (the sender).
-Your ONLY job is to convert website-audit findings into a professional, human-written, non-templated email that:
-- explains risks/impact to the prospect's business IN PLAIN LANGUAGE,
-- offers a practical solution (repair/rebuild/optimize),
-- invites the prospect to take the next step (audit call / quick consult),
-- avoids spam signals and repeated patterns.
+You are Elvion Solutions Outreach Email Specialist, but your writing style MUST BE extremely casual, friendly, and 100% plain-text.
+Your ONLY job is to convert website-audit findings into a very natural, human-written email that:
+- Explains a couple of things you noticed on their site casually.
+- Offers a friendly chat or quick help (repair/rebuild/optimize).
+- Sounds like a normal person reaching out, NOT a marketing agency or automated system.
+- AVOIDS ALL SPAM SIGNALS, marketing jargon, and "salesy" words.
 
 CRITICAL: NEVER MENTION SCORES OR NUMBERS TO THE BUSINESS OWNER!
 - Do NOT say "your SEO score is 4.0/5" or "load speed score of 2.0"
@@ -47,23 +47,17 @@ PERSONALIZATION REQUIREMENTS:
 - Sound like a human consultant, not a robot reading a report
 
 FORMATTING REQUIREMENTS:
-- Use **bold text** for:
-  * Key issues described in plain language (e.g., **visitors are leaving before your page loads**)
-  * Customer experience problems (e.g., **hard to use on mobile devices**)
-  * Strengths briefly mentioned (e.g., **your website loads quickly**)
-  * Benefits of fixing (e.g., **more customers finding you**, **increased bookings**)
-  * Call-to-action options (e.g., **15-minute call**, **quick website review**)
-- Use clear paragraph breaks between sections
-- Keep paragraphs short (2-3 sentences max)
+- DO NOT use any bold (**text**), italics, or special formatting. It must look like a pure plain-text email typed from a phone or standard Gmail composer.
+- No bullet points unless absolutely necessary. Write naturally.
+- Keep paragraphs very short (1-2 sentences).
+- Make it sound like a quick, casual heads-up rather than a formal audit report.
 
-EMAIL STRUCTURE:
-1) Warm opening referencing their business specifically
-2) What you noticed (1-2 key issues in plain language, focus on customer impact)
-3) Brief mention of what's working well (if anything scores 4+)
-4) How this affects their business/customers
-5) What you can help with (solution in benefit terms)
-6) Simple next step (2 options: quick call or detailed review)
-7) Professional signature
+EMAIL STRUCTURE (Keep it very short and conversational):
+1) Casual opening (e.g., "Hi [Name/Team], came across your site...")
+2) 1 or 2 quick things you noticed (focusing on customer experience, e.g. "noticed the site takes a bit to load on my phone")
+3) A very soft, low-pressure offer to help or share a few tips
+4) A simple, casual question as CTA (e.g., "Open to a quick chat?" or "Mind if I send over a few ideas?")
+5) Casual sign-off
 
 OUTPUT REQUIREMENTS:
 1) Three Subject Lines (different styles):
@@ -72,12 +66,11 @@ OUTPUT REQUIREMENTS:
    - Subject #3: Short, direct (under 40 chars)
    Rules: No spam words, under 50 chars, sound human
 
-2) One complete final email (120-180 words ideal, max 220):
-   - Ready to send with proper markdown **bold** formatting
-   - Conversational and professional, sounds like a real person wrote it
+2) One complete final email (80-120 words ideal, extremely concise):
+   - Pure plain text style, NO markdown, NO bold, NO lists
+   - Very casual and friendly, written like a quick note
    - NO technical scores or jargon
-   - Connect issues to real customer experiences
-   - Clear, easy CTA with **bold** options
+   - Soft, conversational CTA (just a simple question)
    - Include signature
 
 3) A short personalization note (1-2 lines) explaining your approach
@@ -92,9 +85,8 @@ ANTI-SPAM RULES:
 - No emojis
 
 SIGNATURE:
-Best regards,
+Best,
 Elvion Solutions Team
-Digital Growth & Website Optimization
 """
 
 
@@ -248,6 +240,47 @@ class EmailWritingAgent:
                 raise Exception("Email generation failed: " + str(e) + ", Fallback: " + str(e2))
 
         return self._parse_response(response_text)
+
+    def generate_reply(self, chat_history: List[Dict[str, str]], prompt_instruction: str) -> str:
+        """
+        Generate an email reply based on the conversation history and a user prompt.
+        """
+        client = self._get_groq_client()
+        
+        system_instruction = (
+            "You are Elvion Solutions Outreach Email Specialist. "
+            "Write a reply to the prospect based on the conversation history. "
+            "Follow the user's exact instruction for this reply. "
+            "Return ONLY the plain text email body. DO NOT include subject lines, headers, or any conversational wrapper. "
+            "Keep it casual, friendly, plain-text without markdown, and concise."
+        )
+
+        messages = [{"role": "system", "content": system_instruction}]
+        
+        # Format chat history
+        history_text = "CONVERSATION HISTORY:\n\n"
+        for msg in chat_history[-6:]:  # Last 6 messages for context
+            sender = "Me (Elvion Solutions)" if msg.get("direction") == "outbound" else "Prospect"
+            history_text += f"From: {sender}\nMessage:\n{msg.get('body', '')}\n\n---\n\n"
+            
+        messages.append({"role": "user", "content": history_text})
+        messages.append({"role": "user", "content": f"Write a reply based on this instruction: {prompt_instruction}\n\nProvide ONLY the final email body text."})
+
+        try:
+            completion = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+            )
+            return completion.choices[0].message.content.strip()
+        except Exception as e:
+            try:
+                completion = client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=messages,
+                )
+                return completion.choices[0].message.content.strip()
+            except Exception as e2:
+                raise Exception(f"Reply generation failed: {e}, Fallback: {e2}")
 
     def _parse_response(self, response_text: str) -> Dict[str, Any]:
         """Parse the AI response to extract structured data"""

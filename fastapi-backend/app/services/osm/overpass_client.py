@@ -58,7 +58,7 @@ JUNK_EMAIL_DOMAINS = {
     "sentry.io", "sentry.wixpress.com", "sentry-next.wixpress.com",
     # Placeholder / template emails
     "example.com", "domain.com", "yourdomain.com", "test.com",
-    "placeholder.com", "email.com",
+    "placeholder.com", "email.com", "hub.biz",
     # Image filenames falsely matched as emails (e.g. sprite@2x.png)
 }
 
@@ -81,12 +81,39 @@ JUNK_EMAIL_PATTERNS = [
 
 _JUNK_COMPILED = [re.compile(p, flags=re.IGNORECASE) for p in JUNK_EMAIL_PATTERNS]
 
+JUNK_EMAIL_PARTS = {
+    "body", "container", "css", "hover", "icon", "icons", "image", "img",
+    "ion", "ions", "ionids", "loc", "many", "mut", "script", "sprite",
+    "src", "str", "style", "this", "write",
+}
+
 
 def is_junk_email(email: str) -> bool:
-    email_lower = email.lower()
+    email_lower = email.strip().strip('.,;:()[]{}<>"\'').lower()
+    if not email_lower or "@" not in email_lower:
+        return True
+
+    local_part, domain = email_lower.rsplit("@", 1)
+    domain_labels = domain.split(".")
+
+    if len(local_part) < 2 or local_part.startswith(".") or local_part.endswith("."):
+        return True
+    if ".." in email_lower or "_" in domain or len(domain_labels) < 2:
+        return True
+    if any(not label or label.startswith("-") or label.endswith("-") for label in domain_labels):
+        return True
+    if any(re.search(r"\d{3,}[-.]?\d{3,}", label) for label in domain_labels):
+        return True
+
+    local_tokens = {token for token in re.split(r"[^a-z0-9]+", local_part) if token}
+    domain_tokens = {token for token in re.split(r"[^a-z0-9]+", domain) if token}
+    if local_tokens & JUNK_EMAIL_PARTS and domain_tokens & JUNK_EMAIL_PARTS:
+        return True
+    if domain_labels[-1] in JUNK_EMAIL_PARTS:
+        return True
+
     # Check domain blocklist
-    domain = email_lower.split("@")[-1] if "@" in email_lower else ""
-    if domain in JUNK_EMAIL_DOMAINS:
+    if any(domain == junk_domain or domain.endswith(f".{junk_domain}") for junk_domain in JUNK_EMAIL_DOMAINS):
         return True
     # Check pattern blocklist
     for pat in _JUNK_COMPILED:
@@ -109,8 +136,13 @@ def extract_emails(text: str) -> list[str]:
     seen = set()
     result = []
     
-    # Method 1: Standard email regex pattern
-    standard_emails = re.findall(r"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", text, flags=re.IGNORECASE)
+    # Remove script/style content before broad matching; CSS/JS fragments often
+    # contain strings that accidentally look like emails.
+    visible_text = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', text, flags=re.IGNORECASE | re.DOTALL)
+    visible_text = re.sub(r'<[^>]+>', ' ', visible_text)
+
+    # Method 1: Standard email regex pattern on visible text only
+    standard_emails = re.findall(r"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", visible_text, flags=re.IGNORECASE)
     
     # Method 2: Extract from mailto: links (handles HTML entity encoding too)
     # Pattern: mailto:email@domain.com or href="mailto:email"
@@ -345,7 +377,7 @@ def resilient_post(url: str, data: bytes):
             if attempt == RETRIES:
                 raise RuntimeError(f"POST failed after {RETRIES} retries: {url} | {e}") from e
             wait = BACKOFF_BASE ** attempt
-            print(f"   ↻ Retry {attempt}/{RETRIES} for Overpass in {wait}s...")
+            print(f"    Retry {attempt}/{RETRIES} for Overpass in {wait}s...")
             time.sleep(wait)
 
 
@@ -353,7 +385,13 @@ def resilient_post(url: str, data: bytes):
 # Geocoding
 # ──────────────────────────────────────────────────────────
 def geocode_city_center(city: str, country: str):
-    query = f"{city}, {country}".strip()
+    city_clean = (city or "").strip()
+    country_clean = (country or "").strip()
+    if city_clean and country_clean:
+        query = f"{city_clean}, {country_clean}"
+    else:
+        query = city_clean or country_clean
+
     params = {
         "q": query,
         "format": "json",
@@ -371,21 +409,22 @@ def geocode_city_center(city: str, country: str):
                 last_err = f"No results from {base}"
                 continue
 
-            country_l = country.strip().lower()
+            country_l = country_clean.lower()
             best = None
             for item in data:
                 addr = item.get("address", {}) or {}
                 display = (item.get("display_name") or "").lower()
                 cc = (addr.get("country_code") or "").lower()
 
-                if len(country_l) == 2 and cc == country_l:
-                    best = item; break
-                if country_l in display:
-                    best = item; break
-                if country_l in ["usa", "us", "united states"] and (cc == "us" or "united states" in display):
-                    best = item; break
-                if country_l in ["uae", "united arab emirates"] and (cc == "ae" or "united arab emirates" in display):
-                    best = item; break
+                if country_l:
+                    if len(country_l) == 2 and cc == country_l:
+                        best = item; break
+                    if country_l in display:
+                        best = item; break
+                    if country_l in ["usa", "us", "united states"] and (cc == "us" or "united states" in display):
+                        best = item; break
+                    if country_l in ["uae", "united arab emirates"] and (cc == "ae" or "united arab emirates" in display):
+                        best = item; break
 
             if best is None:
                 best = data[0]
@@ -395,7 +434,7 @@ def geocode_city_center(city: str, country: str):
             display_name = best.get("display_name")
             cc = ((best.get("address") or {}).get("country_code") or "").upper()
 
-            print("\n✅ Geocoding selected:")
+            print("\n Geocoding selected:")
             print("   Input:", query)
             print("   Match:", display_name)
             print("   Country code:", cc)
@@ -404,7 +443,7 @@ def geocode_city_center(city: str, country: str):
 
         except Exception as e:
             last_err = e
-            print(f"➡️ Geocoding server failed: {base} | {e}")
+            print(f" Geocoding server failed: {base} | {e}")
 
     raise RuntimeError(
         f"Geocoding failed on all servers. Last error: {last_err}\n"
@@ -608,7 +647,7 @@ def overpass_fetch(query: str) -> dict:
             return r.json()
         except Exception as e:
             last_err = e
-            print(f"➡️ Overpass server failed: {server} | {e}")
+            print(f" Overpass server failed: {server} | {e}")
     raise RuntimeError(f"All Overpass servers failed. Last error: {last_err}")
 
 
@@ -808,7 +847,7 @@ def enrich_record(rec: dict) -> dict:
     try:
         crawl = crawl_website_for_contacts(site, CRAWL_MAX_PAGES_PER_SITE, crawl_session)
     except Exception as e:
-        print(f"  ⚠️ Crawl failed for {site}: {e}")
+        print(f"   Crawl failed for {site}: {e}")
         return rec
     finally:
         crawl_session.close()
@@ -848,16 +887,16 @@ def main():
 
     lat, lon, display_name, cc = geocode_city_center(city, country)
 
-    print("🔍 Querying OSM directory via Overpass...")
+    print(" Querying OSM directory via Overpass...")
     tags, matched_key, corrected = _resolve_business_type(business_type)
     if tags and corrected != business_type:
-        print(f"   ✏️  Typo corrected: '{business_type}' → '{corrected}'")
+        print(f"     Typo corrected: '{business_type}' → '{corrected}'")
         print(f"   Matched OSM tags: {tags}")
     elif tags:
         print(f"   Matched OSM tags: {tags}")
     else:
-        print(f"   ⚠️  No OSM tag match for '{business_type}'")
-        print(f"   ℹ️  OSM stores business categories (restaurant, gym, pharmacy…),")
+        print(f"     No OSM tag match for '{business_type}'")
+        print(f"     OSM stores business categories (restaurant, gym, pharmacy…),")
         print(f"       not service descriptions. Falling back to name search — results may be 0.")
         print(f"       Try a standard type like: restaurant, cafe, dentist, gym, hotel, pharmacy")
     t0 = time.time()
@@ -875,7 +914,7 @@ def main():
         with_sites = [r for r in records if r.get("website")]
         without    = [r for r in records if not r.get("website")]
 
-        print(f"\n🌐 Crawling {len(with_sites)} websites in parallel (workers={CRAWL_MAX_WORKERS})...")
+        print(f"\n Crawling {len(with_sites)} websites in parallel (workers={CRAWL_MAX_WORKERS})...")
         print("   Prioritising contact/about pages for email extraction...\n")
         t1 = time.time()
 
@@ -888,13 +927,13 @@ def main():
                 try:
                     result = fut.result()
                     enriched.append(result)
-                    status = "✅" if result.get("email") else "—"
+                    status = "" if result.get("email") else "—"
                     print(f"  {status} [{done}/{len(with_sites)}] "
                           f"{result.get('business_name', '?')[:40]}"
                           + (f"  → {result['email']}" if result.get("email") else ""))
                 except Exception as e:
                     enriched.append(futures[fut])
-                    print(f"  ⚠️ Enrichment error: {e}")
+                    print(f"   Enrichment error: {e}")
 
         records = enriched + without
         found_email = sum(1 for r in records if r.get("email"))
@@ -917,7 +956,7 @@ def main():
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✅ Done! Saved {len(records)} businesses to: {OUTPUT_FILE}")
+    print(f"\n Done! Saved {len(records)} businesses to: {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":

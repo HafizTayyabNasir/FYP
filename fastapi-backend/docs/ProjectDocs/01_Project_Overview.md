@@ -57,13 +57,13 @@ Given a business type and location, the system should:
 
 - FastAPI web + API server for user interaction.
 - Modular services layer for discovery/audit/crawling/outreach.
-- File-based persistence for demo mode (JSON files).
+- Full production-grade persistence using Supabase (PostgreSQL) and structured relational data.
 
 ### Excluded or future work
 
-- Full production database schema and migrations (the repository includes placeholder DB modules).
+- Advanced enterprise-level multi-tenant SaaS features (though role-based authentication and pricing tiers are already implemented).
 - Enterprise-scale campaign analytics (open/reply tracking requires pixel/tracking + mailbox integration).
-- Full authentication/authorization hardening (an auth endpoint file exists, but security modules may be incomplete).
+- Complex biometric or hardware-level authentication methods (current implementation utilizes industry-standard JWT and OAuth 2.0).
 
 ## 1.6 Stakeholders and Users
 
@@ -158,3 +158,7 @@ The rest of the documentation proceeds from architecture to modules:
 - Data storage and future DB design
 - Security/privacy/compliance
 - Testing and deployment
+
+
+## 1.16 Evolution into a Full-Stack SaaS Architecture
+As the project advanced through its lifecycle, the initial localized prototype was radically transformed into a distributed, cloud-native Software-as-a-Service (SaaS) application. This monumental shift involved the complete separation of the frontend presentation layer from the backend computational API. The frontend is now powered by Next.js 14 (App Router) deployed on Vercel, ensuring global edge-caching and instantaneous Server-Side Rendering (SSR). Concurrently, the backend logic, driven by FastAPI, is hosted on Render, providing robust horizontal scaling capabilities. Data persistence transitioned from volatile local storage to a highly available Supabase PostgreSQL cluster, utilizing asynchronous connection pooling (`asyncpg`) to handle high-concurrency scraping and auditing threads. This architecture perfectly mirrors enterprise-grade commercial platforms.

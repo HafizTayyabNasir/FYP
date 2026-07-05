@@ -17,7 +17,7 @@ MAX_PAGES_TO_CHECK = 15
 CRAWL_LIMIT_LINKS = 80
 MEDIA_QUERY = "(max-width: 768px)"
 
-# ✅ Screenshots: always save OK screenshots + save issue screenshots if issues exist
+#  Screenshots: always save OK screenshots + save issue screenshots if issues exist
 ALWAYS_SAVE_SCREENSHOTS = True
 
 
@@ -77,7 +77,7 @@ def media_query_match(page, query: str) -> bool:
 def save_screenshot(page, path: str):
     try:
         page.screenshot(path=path, full_page=True)
-        print(f"📸 Saved screenshot: {path}")
+        print(f" Saved screenshot: {path}")
     except Exception as e:
         print(f"❌ Screenshot failed: {path} | Error: {e}")
 
@@ -261,7 +261,7 @@ def main():
 
     root_screens_dir = os.path.join(os.getcwd(), f"screenshots_{domain_folder}")
     ensure_dir(root_screens_dir)
-    print(f"\n📁 Screenshots root folder: {root_screens_dir}")
+    print(f"\n Screenshots root folder: {root_screens_dir}")
 
     results = []
 
@@ -308,7 +308,7 @@ def main():
 
             print(f"\n--- Checking page {idx}/{len(pages_to_check)} ---")
             print(f"URL: {url}")
-            print(f"📁 Page screenshots folder: {page_screens_dir}")
+            print(f" Page screenshots folder: {page_screens_dir}")
 
             desktop_res = test_view(desktop_page, url, expected_mobile=False, screenshots_dir=page_screens_dir, prefix="desktop")
             mobile_res = test_view(mobile_page, url, expected_mobile=True, screenshots_dir=page_screens_dir, prefix="mobile")
@@ -384,7 +384,7 @@ def main():
     print("==============================")
     print(f"Website: {base_host or base_url}")
     print(f"Pages checked: {len(results)} (limit: {MAX_PAGES_TO_CHECK})")
-    print(f"📁 Screenshots root folder: {root_screens_dir}")
+    print(f" Screenshots root folder: {root_screens_dir}")
 
     print("\n=== OVERALL RATING (0–5) ===")
     print(f"Overall Responsiveness Score: {overall_rating}/5")

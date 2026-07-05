@@ -297,7 +297,7 @@ def process_message(user_message, user_content, conversation_history, session_da
         )
     except Exception as model_error:
         # Fallback to alternative model if primary fails
-        print(f"⚠️ Primary model failed, trying alternative: {model_error}")
+        print(f" Primary model failed, trying alternative: {model_error}")
         try:
             completion = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
@@ -308,7 +308,7 @@ def process_message(user_message, user_content, conversation_history, session_da
             )
         except Exception as fallback_error:
             # Final fallback
-            print(f"⚠️ Fallback model failed, trying fallback: {fallback_error}")
+            print(f" Fallback model failed, trying fallback: {fallback_error}")
             completion = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=messages,
@@ -325,7 +325,7 @@ def process_message(user_message, user_content, conversation_history, session_da
                 if chunk.choices[0].delta and chunk.choices[0].delta.content:
                     bot_response += chunk.choices[0].delta.content
     except Exception as stream_error:
-        print(f"⚠️ Error during streaming: {stream_error}")
+        print(f" Error during streaming: {stream_error}")
     
     if not bot_response:
         bot_response = "I'm here to help you write your email. Could you tell me more about what you need?"

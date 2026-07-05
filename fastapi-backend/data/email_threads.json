@@ -1,0 +1,24 @@
+[
+  {
+    "id": "87498630-cb85-41e2-b829-6e5ea5ee24ac",
+    "contact_email": "hafiztayab1000@gmail.com",
+    "contact_name": "hafiztayab1000",
+    "subject": "Helping Cipriani Delight More Guests",
+    "status": "active",
+    "message_count": 2,
+    "last_message_at": "2026-06-18T22:31:22.768611",
+    "created_at": "2026-06-18T17:28:00.293340",
+    "updated_at": "2026-06-18T22:31:22.768611"
+  },
+  {
+    "id": "97aa115b-169f-483b-a3ab-37e352a51772",
+    "contact_email": "reservations@freemansrestaurant.com",
+    "contact_name": "reservations",
+    "subject": "Discovering New Ways to Attract Diners to Freemans Restaurant",
+    "status": "active",
+    "message_count": 1,
+    "last_message_at": "2026-06-18T17:30:58.533745",
+    "created_at": "2026-06-18T17:30:58.533745",
+    "updated_at": "2026-06-18T17:30:58.533745"
+  }
+]

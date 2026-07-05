@@ -246,3 +246,13 @@ The architecture supports extension in multiple directions:
 ## 2.11 Summary
 
 The system is designed as an end-to-end pipeline from discovery → enrichment → audit → generation → outreach. A layered architecture and modular auditing framework make it suitable for an academic project and extensible for future production improvements.
+
+
+## 2.7 Production Multi-Tier Architecture Transition
+In the final phase of development, the monolithic or single-environment paradigm was entirely deprecated in favor of a strictly decoupled multi-tier architecture. 
+### 2.7.1 The Presentation Tier (Next.js & Vercel)
+The Presentation Tier handles all User Interface (UI) and User Experience (UX) rendering. Utilizing React Server Components (RSC) within Next.js, the system minimizes the JavaScript bundle size shipped to the client. Real-time DOM manipulations are handled seamlessly via Framer Motion, while global state (such as JWT authentication payloads) is synchronized using `useSyncExternalStore`.
+### 2.7.2 The Logic & API Tier (FastAPI & Render)
+The API layer acts as the centralized nervous system of the platform. It abstracts away the heavy computational burdens of Playwright web scraping, concurrent asynchronous HTTP requests, and LLM orchestration. By deploying on Render, the FastAPI instance operates behind an ASGI server (`uvicorn`), capable of managing thousands of simultaneous I/O bound requests without thread-locking.
+### 2.7.3 The Data Persistence Tier (Supabase PostgreSQL)
+Transitioning away from localized SQLite, the platform now integrates with Supabase. This tier ensures ACID compliance, high availability, and geographic redundancy. The database schema enforces strict relational integrity, mapping User Entities to their respective Email Accounts, Pricing Plans, and historical Outreach Campaigns. Connections are managed via PgBouncer, preventing connection starvation during heavy parallel workloads.

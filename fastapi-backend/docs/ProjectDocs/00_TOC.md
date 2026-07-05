@@ -98,3 +98,9 @@ This folder contains long-form project documentation intended for final-year pro
 - Some modules are currently placeholders (empty files exist to reserve future structure). The docs describe both:
   - *What is implemented now* (based on the current repository state), and
   - *Theoretical best-practice designs* (so you can justify architecture decisions in your report).
+
+## Phase 4: Production SaaS & Full Stack Architecture
+- **[16_Full_Stack_SaaS_Implementation.md](./16_Full_Stack_SaaS_Implementation.md)**: Vercel, Render, and Supabase deployment infrastructure.
+- **[17_Frontend_UI_UX_Architecture.md](./17_Frontend_UI_UX_Architecture.md)**: Next.js App Router, Framer Motion, state management.
+- **[18_ML_and_AI_Pipeline_Optimization.md](./18_ML_and_AI_Pipeline_Optimization.md)**: Advanced LLM prompting, context pruning, and NLG pipelines.
+- **[19_Advanced_Authentication_OAuth.md](./19_Advanced_Authentication_OAuth.md)**: JWT lifecycles, Bcrypt hashing, Google OAuth flows, and AES encryption.

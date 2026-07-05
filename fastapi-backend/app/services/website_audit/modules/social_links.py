@@ -214,7 +214,7 @@ def main():
 
         if state == "WORKING":
             working += 1
-            print(f"✅ {plat} | {status} | {final_or_error}")
+            print(f" {plat} | {status} | {final_or_error}")
 
         elif state in ("RESTRICTED", "SUSPECT_BLOCK"):
             # Fallback to browser check
@@ -222,7 +222,7 @@ def main():
             if ok:
                 accessible_verified += 1
                 label = "BOT-PROTECTED (verified in browser)"
-                print(f"⚠️ {plat} | {status} | {label} | {browser_final}")
+                print(f" {plat} | {status} | {label} | {browser_final}")
             else:
                 restricted_unverified += 1
                 print(f"❌ {plat} | {status} | BLOCKED and not verified | {browser_final}")
@@ -237,7 +237,7 @@ def main():
             ok, browser_final = check_with_playwright(link)
             if ok:
                 accessible_verified += 1
-                print(f"⚠️ {plat} | ERROR | Verified in browser | {browser_final}")
+                print(f" {plat} | ERROR | Verified in browser | {browser_final}")
             else:
                 broken += 1
                 print(f"❌ {plat} | ERROR | {final_or_error}")

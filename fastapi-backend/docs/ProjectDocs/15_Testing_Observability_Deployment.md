@@ -183,3 +183,19 @@ To reach 500 pages, append:
 ## 15.12 Summary
 
 Testing, observability, and deployment are essential to present the project as an engineered system rather than a single script. This chapter provides the theoretical foundation to justify your design and to plan future improvements.
+
+
+## 15.6 Final Production Deployment Strategy (Vercel, Render, Supabase)
+The deployment topology of the platform represents a masterclass in modern DevOps and Cloud-Native engineering. The system is distributed across three specialized cloud providers to maximize performance and developer velocity.
+
+### 15.6.1 Frontend Deployment: Vercel Edge Network
+The Next.js 14 frontend is deployed onto Vercel's Edge Network. Vercel automatically analyzes the React tree and strategically serves static components from global Content Delivery Networks (CDNs) while executing dynamic Server-Side Rendered (SSR) routes via ephemeral Serverless Functions. This ensures sub-100ms Time-To-First-Byte (TTFB) globally.
+
+### 15.6.2 Backend Deployment: Render Cloud Infrastructure
+The FastAPI Python application is hosted as a long-running Web Service on Render. Unlike serverless functions which suffer from "cold starts" and strict timeout limits (typically 10 seconds), Render provides a persistent containerized environment. This persistence is absolutely crucial for the AI Client Hunt platform, as web scraping (Playwright) and LLM inference generation can easily take 30 to 60 seconds per business. The Web Service is configured with `uvicorn` to multiplex incoming HTTP requests.
+
+### 15.6.3 Database Deployment: Supabase (PostgreSQL)
+The data persistence layer is outsourced to Supabase, an open-source Firebase alternative powered by raw PostgreSQL. Supabase provides automated daily backups, point-in-time recovery (PITR), and out-of-the-box PgBouncer connection pooling. 
+
+### 15.6.4 Cross-Origin Resource Sharing (CORS) Security
+To secure the communication between the Vercel Frontend and Render Backend, strict CORS policies are enforced. The FastAPI `CORSMiddleware` is configured to dynamically accept preflight `OPTIONS` requests only from the specific `ALLOWED_ORIGINS` defined in the environment variables (e.g., `https://ai-client-hunting.vercel.app`), explicitly rejecting unauthorized programmatic access from third-party domains.

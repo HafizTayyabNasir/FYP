@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+/* ===== Base Reset & Typography ===== */
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #F8FAFC;
+  color: #475569;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+html.dark body {
+  background-color: #08061a;
+  color: #8E8BA3;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: #0f172a;
+  transition: color 0.3s;
+}
+
+html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6 {
+  color: #F0EEFF;
+}
+
+select option, select optgroup {
+  background-color: #F8FAFC;
+  color: #475569;
+}
+
+html.dark select option, html.dark select optgroup {
+  background-color: #08061a;
+  color: #8E8BA3;
+}
+
+/* ===== Selection ===== */
+::selection {
+  background: rgba(109, 93, 246, 0.3);
+  color: #f0eeff;
+}
+
+/* ===== Scrollbar styling ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F8FAFC;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #08061a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #1a1838;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #2a2654;
+}
+
+/* ===== Spinner animation ===== */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ===== Smooth scroll ===== */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ===== Landing page specific ===== */
+
+/* Prevent layout shift with direction-rtl utility for alternating sections */
+.lg\:direction-rtl {
+  direction: rtl;
+}
+.lg\:direction-ltr {
+  direction: ltr;
+}
+
+@media (max-width: 1023px) {
+  .lg\:direction-rtl {
+    direction: ltr;
+  }
+}

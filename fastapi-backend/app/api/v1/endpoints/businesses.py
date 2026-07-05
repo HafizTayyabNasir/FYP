@@ -22,7 +22,7 @@ router = APIRouter()
 DATA_DIR = Path(__file__).parent.parent.parent.parent.parent / "data"
 BUSINESSES_FILE = DATA_DIR / "businesses.json"
 
-executor = ThreadPoolExecutor(max_workers=2)
+executor = ThreadPoolExecutor(max_workers=4)
 
 
 def _ensure_data_dir():
@@ -335,111 +335,27 @@ async def crawl_business_website(business_id: str, use_playwright: bool = True):
 
 
 async def _crawl_with_httpx(url: str, businesses: list, business_idx: int) -> dict:
-    """Fallback httpx-based crawling when Playwright is not available"""
-    import re
-    import httpx
-    from bs4 import BeautifulSoup
-    from urllib.parse import urlparse
-    
-    base_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
-    emails = set()
-    pages_checked = []
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    }
-    
-    email_patterns = [
-        r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
-        r'mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-        r'"email"\s*:\s*"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"',
-    ]
-    
-    contact_pages = [
-        '', '/contact', '/contact-us', '/contactus', '/about', '/about-us',
-        '/team', '/support', '/help', '/location', '/locations', '/our-location',
-        '/find-us', '/visit', '/visit-us', '/hours', '/hours-location'
-    ]
-    
-    def extract_emails_from_html(html_content, soup=None):
-        found_emails = set()
-        for pattern in email_patterns:
-            matches = re.findall(pattern, html_content, re.IGNORECASE)
-            found_emails.update(matches)
-        
-        if soup is None:
-            soup = BeautifulSoup(html_content, 'html.parser')
-        
-        for link in soup.find_all('a', href=True):
-            href = link.get('href', '')
-            if href and 'mailto:' in str(href):
-                email = str(href).replace('mailto:', '').split('?')[0].strip()
-                if '@' in email:
-                    found_emails.add(email)
-        
-        for script in soup.find_all('script', type='application/ld+json'):
-            try:
-                import json
-                if script.string:
-                    data = json.loads(script.string)
-                    if isinstance(data, dict):
-                        email = data.get('email') or data.get('contactPoint', {}).get('email')
-                        if email:
-                            found_emails.add(email.replace('mailto:', ''))
-            except:
-                pass
-        
-        return found_emails
-    
-    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, verify=False) as client:
-        for page in contact_pages:
-            try:
-                page_url = base_url.rstrip('/') + page
-                if page_url in pages_checked:
-                    continue
-                pages_checked.append(page_url)
-                
-                resp = await client.get(page_url, headers=headers)
-                if resp.status_code == 200:
-                    found = extract_emails_from_html(resp.text)
-                    emails.update(found)
-                
-                if len(emails) >= 3:
-                    break
-            except:
-                continue
-    
-    invalid_patterns = [
-        'example.com', 'wixpress', 'sentry.io', 'cloudflare', 'google.com',
-        'facebook.com', '.png', '.jpg', '.gif', '.webp', '.svg',
-        'noreply', 'no-reply', 'wordpress', 'squarespace', 'shopify', 'test@'
-    ]
-    
-    filtered_emails = [
-        e for e in emails 
-        if '@' in e and '.' in e.split('@')[1] and len(e) > 5 and len(e) < 100
-        and not any(x in e.lower() for x in invalid_patterns)
-    ]
-    
-    def email_priority(email):
-        e = email.lower()
-        if e.startswith(('info@', 'contact@', 'hello@', 'sales@')):
-            return 0
-        if e.startswith(('support@', 'help@')):
-            return 1
-        return 2
-    
-    filtered_emails.sort(key=email_priority)
-    email = filtered_emails[0] if filtered_emails else None
-    
-    if email:
-        biz_list = list(businesses)
-        biz_list[business_idx]["email"] = email
-        _save_businesses(biz_list)
-        return {"email": email, "message": f"Found email: {email}", "pages_checked": len(pages_checked)}
-    else:
-        return {"email": None, "message": "No email found after comprehensive search", "pages_checked": len(pages_checked)}
+    from app.services.scraping.website_scraper import _scrape_with_httpx_async
+    try:
+        contacts = await _scrape_with_httpx_async(url, timeout=10)
+        if contacts.best_email or contacts.best_phone or contacts.facebook or contacts.instagram:
+            businesses[business_idx]["email"] = contacts.best_email or businesses[business_idx].get("email")
+            businesses[business_idx]["phone"] = contacts.best_phone or businesses[business_idx].get("phone")
+            businesses[business_idx]["facebook"] = contacts.facebook or businesses[business_idx].get("facebook")
+            businesses[business_idx]["instagram"] = contacts.instagram or businesses[business_idx].get("instagram")
+            _save_businesses(businesses)
+            return {
+                "email": contacts.best_email, 
+                "phone": contacts.best_phone,
+                "facebook": contacts.facebook,
+                "instagram": contacts.instagram,
+                "message": "Extracted contacts via fallback", 
+                "pages_checked": len(contacts.pages_crawled)
+            }
+        return {"email": None, "message": "No contacts found", "pages_checked": len(contacts.pages_crawled)}
+    except Exception as e:
+        return {"email": None, "message": str(e), "pages_checked": 0}
+
 
 
 @router.post("/crawl-url")
@@ -505,113 +421,28 @@ async def crawl_website_url(data: dict):
 
 
 async def _crawl_url_with_httpx(url: str) -> dict:
-    """Fallback httpx-based URL crawling"""
-    import re
-    import httpx
-    from bs4 import BeautifulSoup
-    from urllib.parse import urljoin, urlparse
-    
-    base_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
-    emails = set()
-    pages_checked = []
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5"
-    }
-    
-    email_patterns = [
-        r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
-        r'mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-        r'"email"\s*:\s*"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"',
-    ]
-    
-    contact_pages = [
-        '', '/contact', '/contact-us', '/contactus', '/about', '/about-us',
-        '/location', '/locations', '/our-location', '/find-us', '/visit',
-        '/team', '/support', '/help', '/hours'
-    ]
-    
-    def extract_emails_from_html(html_content, soup=None):
-        found_emails = set()
-        for pattern in email_patterns:
-            matches = re.findall(pattern, html_content, re.IGNORECASE)
-            found_emails.update(matches)
-        
-        if soup is None:
-            soup = BeautifulSoup(html_content, 'html.parser')
-        
-        for link in soup.find_all('a', href=True):
-            href = link.get('href', '')
-            if href and 'mailto:' in str(href):
-                email = str(href).replace('mailto:', '').split('?')[0].strip()
-                if '@' in email:
-                    found_emails.add(email)
-        
-        for script in soup.find_all('script', type='application/ld+json'):
-            try:
-                import json
-                if script.string:
-                    data = json.loads(script.string)
-                    if isinstance(data, dict):
-                        email = data.get('email') or data.get('contactPoint', {}).get('email')
-                        if email:
-                            found_emails.add(email.replace('mailto:', ''))
-            except:
-                pass
-        
-        return found_emails
-    
-    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, verify=False) as client:
-        for page in contact_pages:
-            try:
-                page_url = base_url.rstrip('/') + page
-                if page_url in pages_checked:
-                    continue
-                pages_checked.append(page_url)
-                
-                resp = await client.get(page_url, headers=headers)
-                if resp.status_code == 200:
-                    found = extract_emails_from_html(resp.text)
-                    emails.update(found)
-                
-                if len(emails) >= 3:
-                    break
-            except:
-                continue
-    
-    invalid_patterns = [
-        'example.com', 'wixpress', 'sentry.io', 'cloudflare', 'google.com',
-        'facebook.com', '.png', '.jpg', '.gif', '.webp', '.svg',
-        'noreply', 'no-reply', 'wordpress', 'squarespace', 'shopify', 'test@'
-    ]
-    
-    filtered_emails = [
-        e for e in emails 
-        if '@' in e and '.' in e.split('@')[1] and len(e) > 5 and len(e) < 100
-        and not any(x in e.lower() for x in invalid_patterns)
-    ]
-    
-    def email_priority(email):
-        e = email.lower()
-        if e.startswith(('info@', 'contact@', 'hello@', 'sales@')):
-            return 0
-        if e.startswith(('support@', 'help@')):
-            return 1
-        return 2
-    
-    filtered_emails.sort(key=email_priority)
-    email = filtered_emails[0] if filtered_emails else None
-    
-    return {
-        "email": email,
-        "url": url,
-        "emails_found": len(filtered_emails),
-        "pages_checked": len(pages_checked),
-        "all_emails": filtered_emails[:5],
-        "message": f"Found {len(filtered_emails)} email(s)" if filtered_emails else "No email found"
-    }
+    from app.services.scraping.website_scraper import _scrape_with_httpx_async
+    try:
+        contacts = await _scrape_with_httpx_async(url, timeout=10)
+        return {
+            "email": contacts.best_email,
+            "phone": contacts.best_phone,
+            "facebook": contacts.facebook,
+            "instagram": contacts.instagram,
+            "twitter": contacts.twitter,
+            "linkedin": contacts.linkedin,
+            "url": url,
+            "emails_found": len(contacts.emails),
+            "phones_found": len(contacts.phones),
+            "pages_checked": len(contacts.pages_crawled),
+            "all_emails": contacts.emails[:5],
+            "all_phones": contacts.phones[:5],
+            "message": f"Found {len(contacts.emails)} email(s), {len(contacts.phones)} phone(s)",
+            "method": "httpx_fallback"
+        }
+    except Exception as e:
+        return {"email": None, "url": url, "message": str(e), "emails_found": 0}
+
 
 
 @router.post("/extract")
@@ -682,10 +513,11 @@ async def discover_website_single(data: dict):
     """
     Discover the website for a single business via DuckDuckGo search,
     then immediately scrape it for email, phone, and social media.
+    Uses httpx-only scraping (no Playwright) for speed.
     Used for progressive row-by-row discovery from the UI.
     """
     from app.services.osm.website_discovery import discover_website
-    from app.services.scraping.website_scraper import scrape_website_for_contacts
+    from app.services.scraping.website_scraper import _scrape_with_httpx_async
 
     name = data.get("business_name", "")
     city = data.get("city", "")
@@ -694,16 +526,27 @@ async def discover_website_single(data: dict):
     if not name:
         raise HTTPException(status_code=400, detail="business_name is required")
 
-    loop = asyncio.get_event_loop()
-    url = await loop.run_in_executor(
-        executor,
-        lambda: discover_website(name, city, country, verify=True),
-    )
+    # Discover website URL via DuckDuckGo (with timeout guard)
+    try:
+        loop = asyncio.get_event_loop()
+        url = await asyncio.wait_for(
+            loop.run_in_executor(
+                executor,
+                lambda: discover_website(name, city, country, verify=True),
+            ),
+            timeout=30  # 30 second max for DuckDuckGo search
+        )
+    except asyncio.TimeoutError:
+        url = None
 
     contacts = {}
     if url:
         try:
-            scraped = await scrape_website_for_contacts(url)
+            # Use httpx-only scraping (fast, no Playwright) — 8s timeout
+            scraped = await asyncio.wait_for(
+                _scrape_with_httpx_async(url, timeout=8),
+                timeout=15  # hard cap at 15s for the scrape
+            )
             contacts = {
                 "email": scraped.best_email,
                 "phone": scraped.best_phone,

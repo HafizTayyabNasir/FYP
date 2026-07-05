@@ -1,18 +1,22 @@
 # FastAPI Backend - Run Guide
 
 ## Prerequisites
-Ensure Python 3.8+ is installed on your system.
+- Python 3.8+ installed
+- Git
 
-## Installation
+## Setup
 
 ### 1. Create Virtual Environment
+```bash
 python -m venv venv
 ```
 
 ### 2. Activate Virtual Environment
+```bash
+# Windows
 venv\Scripts\activate
 
-# On macOS/Linux
+# macOS/Linux
 source venv/bin/activate
 ```
 
@@ -21,16 +25,28 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Setup Environment Variables
-Copy the example environment file and configure it:
+### 4. Install Playwright Browsers (first time only)
 ```bash
+playwright install chromium
+```
+
+### 5. Setup Environment Variables
+```bash
+# Windows
+copy .env.example .env
+
+# macOS/Linux
 cp .env.example .env
 ```
-Edit `.env` with your configuration values (API keys, database URLs, etc.)
+
+Edit `.env` and fill in your values:
+- `GROQ_API_KEY` — get from https://console.groq.com
+- `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` — see Gmail API setup below
+- `SMTP_FROM_NAME` — your name or company name
 
 ## Running the Application
 
-### Development Mode (with auto-reload)
+### Development Mode (auto-reload)
 ```bash
 uvicorn app.main:app --host 127.0.0.1 --port 5000 --reload
 ```
@@ -40,29 +56,52 @@ uvicorn app.main:app --host 127.0.0.1 --port 5000 --reload
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Using Makefile (if configured)
+## Access the Application
+- **App**: http://127.0.0.1:5000
+- **Swagger API Docs**: http://127.0.0.1:5000/docs
+- **ReDoc**: http://127.0.0.1:5000/redoc
+
+## Gmail API Setup (for Email Dashboard)
+
+Run this once to get your refresh token:
 ```bash
-make run
+python scripts/gmail_auth.py --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
 ```
 
-## Access the Application
-- **API**: http://127.0.0.1:5000
-- **Interactive API Docs (Swagger)**: http://127.0.0.1:5000/docs
-- **Alternative API Docs (ReDoc)**: http://127.0.0.1:5000/redoc
+Steps:
+1. Go to https://console.cloud.google.com → New Project → Enable **Gmail API**
+2. OAuth consent screen → External → add your Gmail as a test user
+3. Credentials → Create **OAuth 2.0 Client ID** → Desktop app
+4. Run the command above — a browser window will open
+5. Sign in and allow access
+6. Copy the printed `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` into `.env`
 
 ## Troubleshooting
 
-### Port Already in Use
-If port 5000 is already in use, specify a different port:
+### Port already in use
 ```bash
 uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
 ```
 
-### Database Connection Issues
-Verify your database credentials in `.env` file and ensure the database service is running.
-
-### Missing Dependencies
-If you encounter missing package errors, reinstall dependencies:
+### Missing package errors
 ```bash
 pip install -r requirements.txt --upgrade
 ```
+
+### `ddgs` module not found
+```bash
+pip install ddgs
+```
+
+### Groq API key not working
+Make sure the key is set as `GROQ_API_KEY` in `.env` (not `GROK_API_KEY`). Keys starting with `gsk_` are Groq keys.
+
+
+
+cd "d:\FYP\AI-Client-Hunting-OutReach-main\AI-Client-Hunting-OutReach-main\fastapi-backend"
+venv\Scripts\activate
+uvicorn app.main:app --host 127.0.0.1 --port 5000 --reload
+
+
+cd "d:\FYP\AI-Client-Hunting-OutReach-main\AI-Client-Hunting-OutReach-main\nextjs-frontend"
+npm run dev

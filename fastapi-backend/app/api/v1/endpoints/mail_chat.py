@@ -1,5 +1,6 @@
 """
 Mail endpoints — inbox sync (Gmail API), send, and thread management.
+Now supports Resend as the primary email provider.
 """
 import json
 import uuid
@@ -41,6 +42,10 @@ def _save(path: Path, data: list):
     path.write_text(json.dumps(data, indent=2, default=str))
 
 
+def _resend_configured() -> bool:
+    return bool(settings.RESEND_API_KEY)
+
+
 def _gmail_configured() -> bool:
     return bool(
         settings.GMAIL_CLIENT_ID
@@ -55,6 +60,10 @@ def _smtp_configured() -> bool:
 
 def _imap_configured() -> bool:
     return bool(settings.SMTP_USER and settings.SMTP_PASSWORD)
+
+
+def _any_email_configured() -> bool:
+    return _resend_configured() or _gmail_configured() or _smtp_configured()
 
 
 def _gmail_creds() -> dict:
@@ -76,11 +85,18 @@ class SendRequest(BaseModel):
     html_body: Optional[str] = None
 
 
+class SyncRequest(BaseModel):
+    imap_host: Optional[str] = None
+    imap_port: Optional[int] = 993
+    imap_user: Optional[str] = None
+    imap_password: Optional[str] = None
+
+
 # ── inbox: sync + messages ────────────────────────────────────────────────────
 
 @router.post("/sync")
-async def sync_inbox():
-    """Pull latest emails from Gmail API and store locally."""
+async def sync_inbox(req: Optional[SyncRequest] = None):
+    """Pull latest emails from Gmail API or IMAP and store locally."""
     if _gmail_configured():
         try:
             import asyncio
@@ -96,51 +112,71 @@ async def sync_inbox():
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Gmail sync failed: {e}")
 
-    if not _imap_configured():
-        raise HTTPException(
-            status_code=400,
-            detail="Email not configured. Add GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN (or SMTP_USER/PASSWORD + IMAP_HOST) to .env"
-        )
+    # Use request credentials if provided, otherwise fallback to .env
+    imap_host = req.imap_host if req and req.imap_host else settings.IMAP_HOST
+    imap_port = req.imap_port if req and req.imap_port else settings.IMAP_PORT
+    imap_user = req.imap_user if req and req.imap_user else settings.SMTP_USER
+    imap_password = req.imap_password if req and req.imap_password else settings.SMTP_PASSWORD
 
-    try:
-        from app.services.email.imap_client import sync_inbox as _sync
-        import asyncio
-        import concurrent.futures
+    if imap_user and imap_password and imap_host:
+        try:
+            from app.services.email.imap_client import sync_inbox as _sync
+            import asyncio
+            import concurrent.futures
 
-        loop = asyncio.get_event_loop()
-        with concurrent.futures.ThreadPoolExecutor() as ex:
-            result = await loop.run_in_executor(
-                ex, lambda: _sync(
-                    host=settings.IMAP_HOST,
-                    port=settings.IMAP_PORT,
-                    user=settings.SMTP_USER,
-                    password=settings.SMTP_PASSWORD,
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as ex:
+                result = await loop.run_in_executor(
+                    ex, lambda: _sync(
+                        host=imap_host,
+                        port=imap_port,
+                        user=imap_user,
+                        password=imap_password,
+                    )
                 )
-            )
-        return {"success": True, **result}
-    except ConnectionError as e:
-        raise HTTPException(status_code=401, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Sync failed: {e}")
+            return {"success": True, **result}
+        except ConnectionError as e:
+            raise HTTPException(status_code=401, detail=str(e))
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"Sync failed: {e}")
+
+    # If only Resend configured (no inbox provider), return sent messages as "synced"
+    if _resend_configured():
+        return {"success": True, "synced": 0, "note": "Resend is send-only. Sent emails are shown in the Sent folder."}
+
+    raise HTTPException(
+        status_code=400,
+        detail="Email not configured. Add RESEND_API_KEY, or GMAIL/SMTP credentials to .env"
+    )
 
 
 @router.get("/messages")
-async def get_messages(folder: str = Query("inbox")):
+async def get_messages(
+    folder: str = Query("inbox"),
+    imap_user: Optional[str] = Query(None),
+):
     """Return emails for inbox or sent folder."""
+    from_name = settings.RESEND_FROM_NAME or settings.SMTP_FROM_NAME or "You"
+    from_email_addr = settings.RESEND_FROM_EMAIL or settings.SMTP_FROM_EMAIL or settings.SMTP_USER or ""
+
     if folder == "sent":
         all_msgs = _load(MESSAGES_FILE)
         sent = [
             {
                 "id": m["id"],
-                "from_name": settings.SMTP_FROM_NAME,
-                "from_email": m.get("from_email") or settings.SMTP_USER or "",
+                "from_name": from_name,
+                "from_email": m.get("from_email") or from_email_addr,
                 "to_email": m.get("to_email", ""),
+                "to_name": m.get("to_name", ""),
                 "subject": m.get("subject", ""),
                 "body": m.get("body", ""),
                 "preview": (m.get("body") or "")[:120],
                 "date": m.get("sent_at") or m.get("created_at", ""),
                 "read": True,
                 "folder": "sent",
+                "thread_id": m.get("thread_id"),
                 "attachments": [],
             }
             for m in all_msgs
@@ -149,12 +185,39 @@ async def get_messages(folder: str = Query("inbox")):
         sent.sort(key=lambda x: x["date"], reverse=True)
         return {"messages": sent, "total": len(sent)}
 
+    # Inbox: try Gmail, then IMAP, then show inbound messages from data file
+    inbox = []
     if _gmail_configured():
-        from app.services.email.gmail_client import get_stored_inbox
-        inbox = get_stored_inbox()
-    else:
-        from app.services.email.imap_client import get_stored_inbox
-        inbox = get_stored_inbox()
+        try:
+            from app.services.email.gmail_client import get_stored_inbox
+            inbox = get_stored_inbox()
+        except Exception:
+            inbox = []
+    elif imap_user or _imap_configured():
+        try:
+            from app.services.email.imap_client import get_stored_inbox
+            inbox = get_stored_inbox()
+        except Exception:
+            inbox = []
+
+    # Also include any inbound messages stored in our data file
+    all_msgs = _load(MESSAGES_FILE)
+    for m in all_msgs:
+        if m.get("direction") == "inbound":
+            inbox.append({
+                "id": m["id"],
+                "from_name": m.get("from_name", ""),
+                "from_email": m.get("from_email", ""),
+                "to_email": m.get("to_email", ""),
+                "subject": m.get("subject", ""),
+                "body": m.get("body", ""),
+                "preview": (m.get("body") or "")[:120],
+                "date": m.get("created_at", ""),
+                "read": m.get("read", False),
+                "folder": "inbox",
+                "thread_id": m.get("thread_id"),
+                "attachments": [],
+            })
 
     inbox.sort(key=lambda x: x.get("date", ""), reverse=True)
     return {"messages": inbox, "total": len(inbox)}
@@ -164,13 +227,31 @@ async def get_messages(folder: str = Query("inbox")):
 
 @router.post("/send")
 async def send_message(request: SendRequest):
-    """Send an email and record it in the sent store."""
+    """Send an email via Resend (preferred), Gmail API, or SMTP and record it."""
     import asyncio
     import concurrent.futures
 
     loop = asyncio.get_event_loop()
+    result = None
 
-    if _gmail_configured():
+    # ── Pick provider: Resend > Gmail > SMTP ────────────────────────────
+    if _resend_configured():
+        from app.services.email.resend_sender import send_email as resend_send
+
+        with concurrent.futures.ThreadPoolExecutor() as ex:
+            result = await loop.run_in_executor(
+                ex, lambda: resend_send(
+                    to_email=request.to_email,
+                    subject=request.subject,
+                    body=request.body,
+                    html_body=request.html_body,
+                    to_name=request.to_name,
+                )
+            )
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Resend send failed"))
+
+    elif _gmail_configured():
         try:
             from app.services.email.gmail_client import send_email
 
@@ -187,12 +268,13 @@ async def send_message(request: SendRequest):
                 )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Gmail send failed: {e}")
+
     elif _smtp_configured():
-        from app.services.email.smtp_sender import send_email
+        from app.services.email.smtp_sender import send_email as smtp_send
 
         with concurrent.futures.ThreadPoolExecutor() as ex:
             result = await loop.run_in_executor(
-                ex, lambda: send_email(
+                ex, lambda: smtp_send(
                     host=settings.SMTP_HOST,
                     port=settings.SMTP_PORT,
                     user=settings.SMTP_USER,
@@ -209,27 +291,68 @@ async def send_message(request: SendRequest):
     else:
         raise HTTPException(
             status_code=400,
-            detail="Email not configured. Add GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN to .env"
+            detail="Email not configured. Add RESEND_API_KEY (or Gmail/SMTP creds) to .env"
         )
 
-    messages = _load(MESSAGES_FILE)
+    # ── Record message + thread ─────────────────────────────────────────
     message_id = result.get("message_id") or str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+    from_email = settings.RESEND_FROM_EMAIL or settings.SMTP_FROM_EMAIL or settings.SMTP_USER or ""
+    from_name = settings.RESEND_FROM_NAME or settings.SMTP_FROM_NAME or "You"
+
+    # Find or create thread
+    threads = _load(THREADS_FILE)
+    thread = next(
+        (t for t in threads if t.get("contact_email") == request.to_email),
+        None
+    )
+    if not thread:
+        thread_id = str(uuid.uuid4())
+        thread = {
+            "id": thread_id,
+            "contact_email": request.to_email,
+            "contact_name": request.to_name or request.to_email.split("@")[0],
+            "subject": request.subject,
+            "status": "active",
+            "message_count": 1,
+            "last_message_at": now,
+            "created_at": now,
+            "updated_at": now,
+        }
+        threads.append(thread)
+    else:
+        thread_id = thread["id"]
+        thread["last_message_at"] = now
+        thread["message_count"] = thread.get("message_count", 0) + 1
+        thread["updated_at"] = now
+
+    _save(THREADS_FILE, threads)
+
+    # Save message
+    messages = _load(MESSAGES_FILE)
     messages.append({
         "id": message_id,
+        "thread_id": thread_id,
         "direction": "outbound",
-        "from_email": settings.SMTP_FROM_EMAIL or settings.SMTP_USER or "",
+        "from_email": from_email,
+        "from_name": from_name,
         "to_email": request.to_email,
-        "to_name": request.to_name,
+        "to_name": request.to_name or "",
         "subject": request.subject,
         "body": request.body,
         "reply_to_id": request.reply_to_id,
         "status": "sent",
-        "sent_at": result.get("sent_at") or datetime.utcnow().isoformat(),
-        "created_at": datetime.utcnow().isoformat(),
+        "sent_at": result.get("sent_at") or now,
+        "created_at": now,
     })
     _save(MESSAGES_FILE, messages)
 
-    return {"success": True, "message_id": message_id, "sent_at": result.get("sent_at")}
+    return {
+        "success": True,
+        "message_id": message_id,
+        "thread_id": thread_id,
+        "sent_at": result.get("sent_at") or now,
+    }
 
 
 # ── thread management ────────────────────────────────────────────────────────
@@ -288,18 +411,30 @@ async def delete_thread(thread_id: str):
 async def get_mail_stats():
     messages = _load(MESSAGES_FILE)
 
+    inbox = []
     if _gmail_configured():
-        from app.services.email.gmail_client import get_stored_inbox
-    else:
-        from app.services.email.imap_client import get_stored_inbox
+        try:
+            from app.services.email.gmail_client import get_stored_inbox
+            inbox = get_stored_inbox()
+        except Exception:
+            inbox = []
+    elif _imap_configured():
+        try:
+            from app.services.email.imap_client import get_stored_inbox
+            inbox = get_stored_inbox()
+        except Exception:
+            inbox = []
 
-    inbox = get_stored_inbox()
     outbound = [m for m in messages if m.get("direction") == "outbound"]
+    threads = _load(THREADS_FILE)
+
     return {
         "inbox_total": len(inbox),
         "inbox_unread": sum(1 for e in inbox if not e.get("read")),
         "sent_total": len(outbound),
         "sent_failed": sum(1 for m in outbound if m.get("status") == "failed"),
+        "threads_total": len(threads),
+        "resend_configured": _resend_configured(),
         "gmail_configured": _gmail_configured(),
         "smtp_configured": _smtp_configured(),
         "imap_configured": _imap_configured(),

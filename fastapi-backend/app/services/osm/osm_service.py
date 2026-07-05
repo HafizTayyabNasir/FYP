@@ -163,3 +163,4 @@ class OSMService:
                 "cinema", "theatre", "museum", "park", "swimming pool"
             ]
         }
+

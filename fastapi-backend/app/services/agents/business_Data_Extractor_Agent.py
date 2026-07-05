@@ -78,57 +78,161 @@ class BusinessDataExtractorAgent:
         self.api_base_url = settings.GROK_API_BASE_URL
         self.groq_api_key = settings.GROQ_API_KEY
 
+    def _is_cloudflare_challenge(self, text: str) -> bool:
+        """Detect Cloudflare challenge / bot-block pages."""
+        cf_markers = [
+            "one moment, please",
+            "checking your browser",
+            "enable javascript and cookies",
+            "cloudflare",
+            "just a moment",
+            "verify you are human",
+            "ray id",
+        ]
+        lower = text.lower()
+        hits = sum(1 for m in cf_markers if m in lower)
+        # If the page is very short AND contains multiple CF markers → blocked
+        return hits >= 2 or (len(text.strip()) < 500 and hits >= 1)
+
+    def _clean_html_to_text(self, html: str) -> str:
+        """Strip scripts/styles and return readable text from HTML."""
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "noscript", "iframe"]):
+            tag.decompose()
+        text = soup.get_text(separator="\n")
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        return "\n".join(lines)
+
+    def _fetch_with_requests(self, url: str) -> Optional[str]:
+        """Fast fetch with requests — works for most static sites and often bypasses Cloudflare."""
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        # Try with full browser-like headers first (no brotli — it triggers CF)
+        headers_list = [
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+            },
+            # Minimal fallback headers
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            },
+        ]
+
+        for headers in headers_list:
+            try:
+                resp = requests.get(url, headers=headers, timeout=15, verify=False, allow_redirects=True)
+                text = self._clean_html_to_text(resp.text)
+                if self._is_cloudflare_challenge(text):
+                    continue  # Try next header set
+                if len(text.strip()) < 100:
+                    continue  # Too little content
+                return text
+            except Exception:
+                continue
+
+        return None  # All header sets failed
+
+    def _fetch_with_playwright(self, url: str) -> str:
+        """Playwright fetch with stealth-like settings for JS-heavy or CF-protected sites."""
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-blink-features=AutomationControlled",
+                ],
+            )
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+                viewport={"width": 1920, "height": 1080},
+                locale="en-US",
+            )
+            # Hide webdriver flag
+            context.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            )
+            page = context.new_page()
+
+            try:
+                response = page.goto(url, timeout=30000, wait_until="domcontentloaded")
+            except Exception:
+                response = None
+
+            if not response:
+                browser.close()
+                raise Exception("No response received for url: " + url)
+
+            # Wait longer for CF challenge to resolve
+            try:
+                page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:
+                pass
+
+            html = page.content()
+            browser.close()
+
+        return self._clean_html_to_text(html)
+
     def _fetch_website_content(self, url: str) -> str:
-        """Fetch and clean website content using Playwright for JS rendering"""
-        if not url.startswith("https://"):
+        """Fetch website content — tries requests first, falls back to Playwright.
+        Also scrapes /about and /contact subpages for richer business data."""
+        if not url.startswith(("http://", "https://")):
             url = "https://" + url
 
+        parsed = urlparse(url)
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        subpages = ["/about", "/about-us", "/contact", "/contact-us", "/services", "/menu"]
+
+        all_text_parts = []
+
+        # --- Strategy 1: requests (fast, often bypasses CF) ---
         try:
-            from playwright.sync_api import sync_playwright
+            text = self._fetch_with_requests(url)
+            if text and len(text) > 200:
+                all_text_parts.append(text)
+                # Also try subpages with requests
+                for sp in subpages:
+                    try:
+                        sp_text = self._fetch_with_requests(base.rstrip("/") + sp)
+                        if sp_text and len(sp_text) > 100:
+                            all_text_parts.append(f"\n--- PAGE: {sp} ---\n" + sp_text)
+                    except Exception:
+                        continue
+                combined = "\n".join(all_text_parts)
+                # Truncate to avoid token limits
+                return combined[:15000] if len(combined) > 15000 else combined
+        except Exception:
+            pass
 
-            with sync_playwright() as p:
-                browser = p.chromium.launch(
-                    headless=True,
-                    args=["--no-sandbox", "--disable-setuid-sandbox"],
-                )
-                context = browser.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    viewport={"width": 1920, "height": 1080},
-                )
-                page = context.new_page()
-
-                try:
-                    response = page.goto(url, timeout=30000, wait_until="domcontentloaded")
-                except Exception:
-                    response = None
-
-                if not response:
-                    raise Exception("No response received for url: " + url)
-
-                if response.status >= 400:
-                    raise Exception(str(response.status) + " Client Error for url: " + url)
-
-                try:
-                    page.wait_for_load_state("networkidle", timeout=10000)
-                except Exception:
-                    pass
-
-                html = page.content()
-                browser.close()
-
-            soup = BeautifulSoup(html, "html.parser")
-            for script in soup(["script", "style"]):
-                script.decompose()
-
-            text = soup.get_text()
-            lines = text.splitlines()
-            lines = [line.strip() for line in lines if line.strip()]
-            text = "\n".join(lines)
-
-            return text
-
+        # --- Strategy 2: Playwright (for JS-heavy or CF-protected sites) ---
+        try:
+            text = self._fetch_with_playwright(url)
+            if text and not self._is_cloudflare_challenge(text) and len(text) > 200:
+                all_text_parts.append(text)
+                combined = "\n".join(all_text_parts)
+                return combined[:15000] if len(combined) > 15000 else combined
         except Exception as e:
-            return "Failed to fetch website: " + str(e)
+            if not all_text_parts:
+                return "Failed to fetch website: " + str(e)
+
+        if all_text_parts:
+            combined = "\n".join(all_text_parts)
+            return combined[:15000] if len(combined) > 15000 else combined
+
+        return "Failed to fetch website: All strategies failed (possibly Cloudflare-protected)"
 
     def _call_grok_api(self, content: str, business_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Call Grok API to extract business data"""

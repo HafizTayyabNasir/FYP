@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     
-    # Database
-    DATABASE_URL: str = Field(default="sqlite:///./app.db")
+    # Database (Supabase PostgreSQL)
+    DATABASE_URL: str = Field(default="postgresql+asyncpg://postgres:postgres@localhost:5432/ai_client_hunt")
     
     # Redis (for caching/celery)
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     GROK_API_KEY: Optional[str] = Field(default=None)
     GROK_API_BASE_URL: str = "https://api.x.ai/v1"
     
+    # Resend API (email sending)
+    RESEND_API_KEY: Optional[str] = Field(default=None)
+    RESEND_FROM_EMAIL: str = Field(default="onboarding@resend.dev")
+    RESEND_FROM_NAME: str = Field(default="Elvion Solutions")
+    
     # Gmail API Configuration (preferred over SMTP/IMAP)
     # Run scripts/gmail_auth.py once to get GMAIL_REFRESH_TOKEN
     GMAIL_CLIENT_ID: Optional[str] = Field(default=None)
@@ -64,7 +69,20 @@ class Settings(BaseSettings):
     # IMAP Configuration
     IMAP_HOST: str = Field(default="imap.gmail.com")
     IMAP_PORT: int = 993
-    
+
+    # Google OAuth (for per-user email connections)
+    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None)
+    GOOGLE_CLIENT_SECRET: Optional[str] = Field(default=None)
+
+
+    # Encryption key for storing tokens/passwords at rest (Fernet)
+    # If not set, a key is derived from SECRET_KEY automatically
+    ENCRYPTION_KEY: Optional[str] = Field(default=None)
+
+    # URLs (for OAuth callbacks and redirects)
+    BACKEND_URL: str = Field(default="http://localhost:8000")
+    FRONTEND_URL: str = Field(default="http://localhost:3000")
+
     # Templates
     TEMPLATES_DIR: Path = Path(__file__).parent.parent / "templates"
     STATIC_DIR: Path = Path(__file__).parent.parent / "static"
@@ -82,6 +100,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra = "ignore"
 
 
 @lru_cache()

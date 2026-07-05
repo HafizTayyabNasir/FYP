@@ -10,7 +10,8 @@ from typing import Optional, List, Dict
 from urllib.parse import urlparse
 
 import re
-
+import httpx
+from bs4 import BeautifulSoup
 from ddgs import DDGS
 
 
@@ -133,7 +134,31 @@ def _score_result(url: str, title: str, business_name: str) -> int:
     return score
 
 # Minimum score threshold to accept a result
-MIN_SCORE = 5
+MIN_SCORE = 3
+
+def _html_search_fallback(query: str) -> list:
+    """Fallback search using raw HTTP if the DDGS library is rate limited."""
+    from urllib.parse import parse_qs
+    results = []
+    try:
+        resp = httpx.get(
+            "https://html.duckduckgo.com/html/",
+            params={"q": query},
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
+            timeout=10.0
+        )
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            for a in soup.find_all('a', class_='result__url'):
+                href = a.get('href', '')
+                if 'uddg=' in href:
+                    qs = parse_qs(urlparse(href).query)
+                    url = qs.get("uddg", [""])[0]
+                    if url:
+                        results.append({"href": url, "title": a.text.strip()})
+    except Exception as e:
+        print(f"Fallback search error: {e}")
+    return results
 
 
 def discover_website(
@@ -154,33 +179,54 @@ def discover_website(
     Returns:
         Website URL string or None
     """
-    query = f"{business_name} {city} {country} official website".strip()
+    # Single optimized query — avoids extra DDG calls that slow things down
+    queries = [
+        f"{business_name} {city} {country} official website".strip(),
+        f"{business_name} {city} {country}".strip()
+    ]
+    
+    best_url = None
+    best_score = 0
 
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=10))
+            for query in queries:
+                results = []
+                try:
+                    # Reduced from 15 to 8 — the right result is almost always in the top 5
+                    results = list(ddgs.text(query, max_results=8))
+                except Exception:
+                    pass
+                
+                if not results:
+                    results = _html_search_fallback(query)
+                
+                if not results:
+                    continue
 
-        # Score all results and pick the best match
-        best_url = None
-        best_score = 0
+                for r in results:
+                    url = r.get("href", "")
+                    title = r.get("title", "")
+                    if not url or _is_skip_domain(url):
+                        continue
 
-        for r in results:
-            url = r.get("href", "")
-            title = r.get("title", "")
-            if not url or _is_skip_domain(url):
-                continue
+                    score = _score_result(url, title, business_name)
+                    if score > best_score:
+                        best_score = score
+                        best_url = _get_base_url(url)
 
-            score = _score_result(url, title, business_name)
-            if score > best_score:
-                best_score = score
-                best_url = _get_base_url(url)
+                # If we found a strong match, skip the second query entirely
+                if best_url and best_score >= 10:
+                    break
+                    
+                # Shorter delay — just enough to avoid rate limits
+                time.sleep(0.3)
 
-        # Only return if we have a reasonable match
         if best_url and best_score >= MIN_SCORE:
             return best_url
 
     except Exception as e:
-        print(f"  ⚠️ Search failed for '{business_name}': {e}")
+        print(f"   Search failed for '{business_name}': {e}")
 
     return None
 
@@ -200,7 +246,7 @@ def discover_websites_bulk(
     discovered = 0
     total_without = sum(1 for r in records if not r.get("website") and r.get("business_name"))
 
-    print(f"\n🔍 Discovering websites for {total_without} businesses in {city}, {country}...")
+    print(f"\n Discovering websites for {total_without} businesses in {city}, {country}...")
 
     for i, rec in enumerate(records):
         if rec.get("website") or not rec.get("business_name"):
@@ -215,12 +261,12 @@ def discover_websites_bulk(
             rec["website"] = url
             rec["website_discovered"] = True
             discovered += 1
-            print(f"✅ {url}")
+            print(f" {url}")
         else:
             print("❌ not found")
 
         # Small delay to avoid rate-limit (ddgs handles most of this internally)
         time.sleep(0.3)
 
-    print(f"\n📊 Website Discovery Complete: {discovered}/{total_without} websites found\n")
+    print(f"\n Website Discovery Complete: {discovered}/{total_without} websites found\n")
     return records, discovered
