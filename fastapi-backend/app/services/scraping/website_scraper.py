@@ -131,7 +131,7 @@ def _extract_emails(content: str) -> Set[str]:
     # 1. Explicit email-bearing HTML attributes. Avoid broad raw-HTML scanning
     # because CSS/JS fragments can accidentally look like emails.
     raw_patterns = [
-        r'mailto:([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})',
+        r'mailto:\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})',
         r'data-[a-z-]*(?:email|mail|cfemail)[a-z-]*=["\']([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})',
     ]
     for i, pattern in enumerate(raw_patterns):

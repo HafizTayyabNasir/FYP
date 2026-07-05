@@ -421,27 +421,56 @@ async def crawl_website_url(data: dict):
 
 
 async def _crawl_url_with_httpx(url: str) -> dict:
-    from app.services.scraping.website_scraper import _scrape_with_httpx_async
+    from app.services.scraping.website_scraper import _scrape_with_httpx_async, _ddg_email_search
+    from urllib.parse import urlparse
+    import asyncio
+    import concurrent.futures
+    
+    contacts_data = {
+        "email": None, "phone": None, "facebook": None, "instagram": None,
+        "twitter": None, "linkedin": None, "url": url,
+        "emails_found": 0, "phones_found": 0, "pages_checked": 0,
+        "all_emails": [], "all_phones": [],
+        "message": "No contacts found", "method": "httpx_fallback"
+    }
+
     try:
         contacts = await _scrape_with_httpx_async(url, timeout=10)
-        return {
+        contacts_data.update({
             "email": contacts.best_email,
             "phone": contacts.best_phone,
             "facebook": contacts.facebook,
             "instagram": contacts.instagram,
             "twitter": contacts.twitter,
             "linkedin": contacts.linkedin,
-            "url": url,
             "emails_found": len(contacts.emails),
             "phones_found": len(contacts.phones),
             "pages_checked": len(contacts.pages_crawled),
             "all_emails": contacts.emails[:5],
             "all_phones": contacts.phones[:5],
-            "message": f"Found {len(contacts.emails)} email(s), {len(contacts.phones)} phone(s)",
-            "method": "httpx_fallback"
-        }
+            "message": f"Found {len(contacts.emails)} email(s), {len(contacts.phones)} phone(s)"
+        })
     except Exception as e:
-        return {"email": None, "url": url, "message": str(e), "emails_found": 0}
+        contacts_data["message"] = str(e)
+
+    # Fast DDG Search Fallback if no email found (bypasses Playwright/Cloudflare)
+    if not contacts_data["email"]:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lstrip('www.')
+        if domain:
+            try:
+                loop = asyncio.get_event_loop()
+                with concurrent.futures.ThreadPoolExecutor() as ex:
+                    found = await loop.run_in_executor(ex, _ddg_email_search, domain)
+                if found:
+                    contacts_data["email"] = found
+                    contacts_data["emails_found"] = 1
+                    contacts_data["all_emails"] = [found]
+                    contacts_data["message"] = "Found 1 email(s) via search fallback"
+            except Exception:
+                pass
+
+    return contacts_data
 
 
 
