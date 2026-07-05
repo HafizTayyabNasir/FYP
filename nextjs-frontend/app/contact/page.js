@@ -33,7 +33,7 @@ export default function ContactPage() {
               <span className="text-xs font-semibold tracking-wider text-slate-400 dark:text-[#6B6890] uppercase block mb-2">
                 Project Owner
               </span>
-              <p className="font-extrabold text-lg text-slate-900 dark:text-white">Elvion Solutions</p>
+              <p className="font-extrabold text-lg text-slate-900 dark:text-white">AI Client Hunt</p>
               
               <div className="mt-6 border-t border-slate-200/80 dark:border-white/[0.06] pt-4">
                 <span className="text-xs font-semibold tracking-wider text-slate-400 dark:text-[#6B6890] uppercase block mb-1">

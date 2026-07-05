@@ -78,10 +78,10 @@ export default function Sidebar({ open }) {
       <div className="p-4 border-t border-slate-200/80 dark:border-white/[0.04]">
         <div className="flex items-center">
           <div className="w-9 h-9 rounded-xl bg-slate-200/50 dark:bg-white/[0.04] flex items-center justify-center text-xs font-bold text-slate-600 dark:text-[#C8C4E8] border border-slate-200/80 dark:border-white/[0.06]">
-            ES
+            ACH
           </div>
           <div className="ml-3">
-            <p className="text-sm font-bold text-slate-900 dark:text-white">Elvion Solutions</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">AI Client Hunt</p>
           </div>
         </div>
       </div>

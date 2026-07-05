@@ -26,7 +26,7 @@ def is_configured() -> bool:
 
 def get_from_address() -> str:
     """Return the configured 'from' address string."""
-    name = settings.RESEND_FROM_NAME or settings.SMTP_FROM_NAME or "Elvion Solutions"
+    name = settings.RESEND_FROM_NAME or settings.SMTP_FROM_NAME or "AI Client Hunt"
     email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
     return f"{name} <{email}>"
 
@@ -48,7 +48,7 @@ def send_email(
     """
     _configure()
 
-    sender_name = from_name or settings.RESEND_FROM_NAME or settings.SMTP_FROM_NAME or "Elvion Solutions"
+    sender_name = from_name or settings.RESEND_FROM_NAME or settings.SMTP_FROM_NAME or "AI Client Hunt"
     sender_email = from_email or settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
     from_address = f"{sender_name} <{sender_email}>"
 

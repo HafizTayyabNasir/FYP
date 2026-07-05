@@ -8,10 +8,10 @@ from datetime import datetime
 
 from app.core.config import settings
 
-EMAIL_AGENT_NAME = "Elvion Solutions Outreach Email Specialist"
+EMAIL_AGENT_NAME = "AI Client Hunt Outreach Email Specialist"
 
 EMAIL_AGENT_SYSTEM_INSTRUCTIONS = """
-You are Elvion Solutions Outreach Email Specialist, but your writing style MUST BE extremely casual, friendly, and 100% plain-text.
+You are AI Client Hunt Outreach Email Specialist, but your writing style MUST BE extremely casual, friendly, and 100% plain-text.
 Your ONLY job is to convert website-audit findings into a very natural, human-written email that:
 - Explains a couple of things you noticed on their site casually.
 - Offers a friendly chat or quick help (repair/rebuild/optimize).
@@ -86,7 +86,7 @@ ANTI-SPAM RULES:
 
 SIGNATURE:
 Best,
-Elvion Solutions Team
+AI Client Hunt Team
 """
 
 
@@ -248,7 +248,7 @@ class EmailWritingAgent:
         client = self._get_groq_client()
         
         system_instruction = (
-            "You are Elvion Solutions Outreach Email Specialist. "
+            "You are AI Client Hunt Outreach Email Specialist. "
             "Write a reply to the prospect based on the conversation history. "
             "Follow the user's exact instruction for this reply. "
             "Return ONLY the plain text email body. DO NOT include subject lines, headers, or any conversational wrapper. "
@@ -260,7 +260,7 @@ class EmailWritingAgent:
         # Format chat history
         history_text = "CONVERSATION HISTORY:\n\n"
         for msg in chat_history[-6:]:  # Last 6 messages for context
-            sender = "Me (Elvion Solutions)" if msg.get("direction") == "outbound" else "Prospect"
+            sender = "Me (AI Client Hunt)" if msg.get("direction") == "outbound" else "Prospect"
             history_text += f"From: {sender}\nMessage:\n{msg.get('body', '')}\n\n---\n\n"
             
         messages.append({"role": "user", "content": history_text})

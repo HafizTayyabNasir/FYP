@@ -71,7 +71,7 @@ export default function AboutPage() {
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Project Overview</h3>
               <div className="space-y-4 text-sm text-slate-600 dark:text-[#8E8BA3] leading-relaxed">
                 <div>
-                  <span className="font-semibold text-slate-900 dark:text-white">Developer:</span> Elvion Solutions
+                  <span className="font-semibold text-slate-900 dark:text-white">Developer:</span> AI Client Hunt
                 </div>
                 <div>
                   <span className="font-semibold text-slate-900 dark:text-white">Focus:</span> Lead discovery, audits, and outreach
