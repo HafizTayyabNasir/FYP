@@ -58,6 +58,35 @@ export default function PublicShell({ children }) {
   const [theme, setTheme] = useState('dark');
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  const deleteAccount = async () => {
+    if (!window.confirm("Are you sure you want to delete your account and all associated data? This action cannot be undone.")) return;
+    
+    try {
+      const token = localStorage.getItem('access_token');
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/api/v1/auth/me`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        setDropdownOpen(false);
+        setMobileMenuOpen(false);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user_name');
+        window.dispatchEvent(new Event('storage'));
+        router.replace('/login');
+      } else {
+        alert("Failed to delete account. Please try again.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("An error occurred while deleting your account.");
+    }
+  };
+
   const isAuthenticated = useSyncExternalStore(subscribeAuth, getAuthSnapshot, () => false);
   const userName = useSyncExternalStore(subscribeAuth, getUserNameSnapshot, () => '');
   const firstLetter = userName ? userName.charAt(0).toUpperCase() : 'U';
@@ -177,9 +206,15 @@ export default function PublicShell({ children }) {
                             window.dispatchEvent(new Event('storage'));
                             router.replace('/');
                           }}
-                          className="flex w-full items-center rounded-xl px-3 py-2 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors mt-1"
+                          className="flex w-full items-center rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 dark:text-[#C8C4E8] hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors mt-1"
                         >
                           Logout
+                        </button>
+                        <button
+                          onClick={deleteAccount}
+                          className="flex w-full items-center rounded-xl px-3 py-2 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors mt-1"
+                        >
+                          Delete Account
                         </button>
                       </motion.div>
                     )}
@@ -281,9 +316,15 @@ export default function PublicShell({ children }) {
                           window.dispatchEvent(new Event('storage'));
                           router.replace('/');
                         }}
-                        className="block w-full text-center rounded-xl border border-slate-200/80 dark:border-white/[0.06] bg-red-50 dark:bg-red-500/10 px-5 py-3 text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-100 transition-colors"
+                        className="block w-full text-center rounded-xl border border-slate-200/80 dark:border-white/[0.06] bg-slate-100 dark:bg-white/[0.04] px-5 py-3 text-sm font-bold text-slate-700 dark:text-[#C8C4E8] hover:bg-slate-200 dark:hover:bg-white/[0.08] transition-colors"
                       >
                         Logout
+                      </button>
+                      <button
+                        onClick={deleteAccount}
+                        className="block w-full text-center rounded-xl border border-slate-200/80 dark:border-white/[0.06] bg-red-50 dark:bg-red-500/10 px-5 py-3 text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-100 transition-colors"
+                      >
+                        Delete Account
                       </button>
                     </>
                   ) : (

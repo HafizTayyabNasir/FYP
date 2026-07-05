@@ -160,3 +160,12 @@ async def select_plan(
     
     return UserSchema.model_validate(current_user)
 
+@router.delete("/me", response_model=dict)
+async def delete_account(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_active_user)
+) -> Any:
+    """Delete the current user account and all associated data."""
+    await db.delete(current_user)
+    await db.commit()
+    return {"message": "Account deleted successfully"}
