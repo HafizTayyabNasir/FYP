@@ -273,8 +273,7 @@ async def crawl_business_website(business_id: str, use_playwright: bool = True):
     if not business.get("website"):
         raise HTTPException(status_code=400, detail="Business has no website")
     
-    if business.get("email"):
-        return {"email": business.get("email"), "message": "Email already exists"}
+    # Allow re-crawl even if email exists (to find/update Facebook, Instagram, phone)
     
     url = business["website"]
     if not url.startswith(("http://", "https://")):

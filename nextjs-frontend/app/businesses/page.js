@@ -41,6 +41,7 @@ export default function BusinessesPage() {
 
   // Crawl state
   const [crawling, setCrawling] = useState({});
+  const [crawlingSaved, setCrawlingSaved] = useState({});
 
   // Tab state
   const [activeTab, setActiveTab] = useState('search');
@@ -396,19 +397,38 @@ export default function BusinessesPage() {
       const response = await fetch('/api/v1/businesses/crawl-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: biz.website }),
+        body: JSON.stringify({ url: biz.website, use_playwright: true }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        if (data.email || (data.all_emails && data.all_emails.length > 0)) {
-          const foundEmail = data.email || data.all_emails[0];
-          const updated = [...results];
-          updated[index] = { ...updated[index], crawled_email: foundEmail, source_email: 'website' };
-          setResults(updated);
+        const foundEmail = data.email || (data.all_emails && data.all_emails[0]) || null;
+        const updated = [...results];
+        const b = updated[index];
+        let anyFound = false;
+        if (foundEmail) {
+          updated[index] = { ...b, crawled_email: foundEmail, source_email: 'website' };
+          anyFound = true;
+        }
+        if (data.facebook && !b.facebook) {
+          updated[index] = { ...updated[index], facebook: data.facebook, source_facebook: 'website' };
+          anyFound = true;
+        }
+        if (data.instagram && !b.instagram) {
+          updated[index] = { ...updated[index], instagram: data.instagram, source_instagram: 'website' };
+          anyFound = true;
+        }
+        if (data.phone && !b.phone) {
+          updated[index] = { ...updated[index], phone: data.phone, source_phone: 'website' };
+          anyFound = true;
+        }
+        setResults(updated);
+        if (foundEmail) {
           showToast(`Found email: ${foundEmail}`, 'success');
+        } else if (anyFound) {
+          showToast('Found social/phone links but no email', 'info');
         } else {
-          showToast('No email found', 'warning');
+          showToast('No contact info found on website', 'warning');
         }
       } else {
         showToast('Crawl failed', 'error');
@@ -417,6 +437,43 @@ export default function BusinessesPage() {
       showToast('Crawl failed: ' + error.message, 'error');
     } finally {
       setCrawling(prev => ({ ...prev, [index]: false }));
+    }
+  }
+
+  async function crawlSavedBusiness(biz) {
+    if (!biz.website) {
+      showToast('No website URL available', 'warning');
+      return;
+    }
+    const bizId = biz.id;
+    setCrawlingSaved(prev => ({ ...prev, [bizId]: true }));
+    try {
+      const response = await fetch(`/api/v1/businesses/${bizId}/crawl?use_playwright=true`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const foundEmail = data.email;
+        if (foundEmail || data.facebook || data.instagram || data.phone) {
+          const msgs = [];
+          if (foundEmail) msgs.push(`Email: ${foundEmail}`);
+          if (data.facebook) msgs.push('Facebook');
+          if (data.instagram) msgs.push('Instagram');
+          if (data.phone) msgs.push(`Phone: ${data.phone}`);
+          showToast(`Found: ${msgs.join(', ')}`, 'success');
+        } else {
+          showToast('No contact info found on website', 'warning');
+        }
+        await loadSavedBusinesses();
+      } else {
+        const err = await response.json();
+        showToast(err.detail || 'Crawl failed', 'error');
+      }
+    } catch (error) {
+      showToast('Crawl failed: ' + error.message, 'error');
+    } finally {
+      setCrawlingSaved(prev => ({ ...prev, [bizId]: false }));
     }
   }
 
@@ -669,7 +726,18 @@ export default function BusinessesPage() {
                         )}
                       </td>
                       <td className="px-3 py-3">
-                        <div className="flex space-x-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {biz.website && (
+                            <button
+                              onClick={() => crawlSavedBusiness(biz)}
+                              disabled={crawlingSaved[biz.id]}
+                              className="text-xs font-medium px-2 py-1 rounded bg-[#6D5DF6]/10 text-[#A78BFA] hover:bg-[#6D5DF6]/20 border border-[#6D5DF6]/20 transition-colors disabled:opacity-50 disabled:cursor-wait flex items-center gap-1"
+                            >
+                              {crawlingSaved[biz.id] ? (
+                                <><span className="inline-block w-3 h-3 border-2 border-[#A78BFA] border-t-transparent rounded-full animate-spin"></span> Crawling...</>
+                              ) : '🕷 Crawl Website'}
+                            </button>
+                          )}
                           {biz.website && (
                             <button onClick={() => goToAudit(biz)} className="text-xs font-medium text-amber-500 hover:text-amber-400">Audit</button>
                           )}

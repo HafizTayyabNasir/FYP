@@ -55,7 +55,7 @@ JUNK_EMAIL_PATTERNS = [
     r"@.*\.js", r"@.*\.css", r"@.*\.jsx", r"@.*\.ts", r"@.*\.tsx",
     r"noreply@", r"no-reply@", r"donotreply@", r"mailer-daemon@",
     r"example@", r"test@", r"admin@admin", r"user@user", r"sample@",
-    r"support@wix", r"@wixpress", r"@sentry", r"@cloudflare",
+    r"support@wix", r"@wixpress\.com", r"@sentry\.io", r"@cloudflareinsights\.com",
 ]
 
 JUNK_EMAIL_PARTS = {
@@ -146,12 +146,24 @@ def _extract_emails(content: str) -> Set[str]:
         if _is_valid_email(e):
             emails.add(e)
 
-    # 3. Cloudflare email protection
+    # 3. Cloudflare email protection — multiple patterns
+    # 3a. data-cfemail attribute
     for cf_hex in re.findall(r'data-cfemail=["\']([0-9a-fA-F]+)["\']', content):
         e = _decode_cf_email(cf_hex).lower()
         if _is_valid_email(e):
             emails.add(e)
+    # 3b. /cdn-cgi/l/email-protection#HEX in href or anywhere
     for cf_hex in re.findall(r'/cdn-cgi/l/email-protection#([0-9a-fA-F]+)', content):
+        e = _decode_cf_email(cf_hex).lower()
+        if _is_valid_email(e):
+            emails.add(e)
+    # 3c. __cf_email__ data attribute (alternate CF pattern)
+    for cf_hex in re.findall(r'data-__cf_email__=["\']([0-9a-fA-F]+)["\']', content):
+        e = _decode_cf_email(cf_hex).lower()
+        if _is_valid_email(e):
+            emails.add(e)
+    # 3d. CF email link with hex in anchor tag (full tag scan)
+    for cf_hex in re.findall(r'<a[^>]+href=["\'][^"\']*/cdn-cgi/l/email-protection#([0-9a-fA-F]+)["\'][^>]*>', content, re.IGNORECASE):
         e = _decode_cf_email(cf_hex).lower()
         if _is_valid_email(e):
             emails.add(e)
@@ -425,10 +437,9 @@ async def _scrape_with_httpx_async(base_url: str, timeout: int = 10) -> ScrapedC
                 if full_url.startswith(origin):
                     internal_links.add(full_url)
                     
-        # Add some default common pages if we didn't find many
-        if len(internal_links) < 3:
-            for p in CONTACT_PAGES[:10]:
-                internal_links.add(origin.rstrip('/') + p)
+        # Always add default contact pages for comprehensive coverage
+        for p in CONTACT_PAGES[:12]:
+            internal_links.add(origin.rstrip('/') + p)
                 
         # Limit to max 15 pages for detailed crawling
         pages_to_fetch = list(internal_links)[:15]
