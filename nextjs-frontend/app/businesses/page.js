@@ -16,6 +16,14 @@ const CATEGORIES = {
   "Health": ["Dentist", "Doctor", "Clinic", "Hospital", "Pharmacy", "Optician", "Physiotherapy"]
 };
 
+function authHeaders() {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+}
+
 export default function BusinessesPage() {
   const showToast = useToast();
   const router = useRouter();
@@ -137,7 +145,7 @@ export default function BusinessesPage() {
           
           const res = await fetch('/api/v1/businesses/discover-website-single', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({
               business_name: biz.business_name || biz.name || biz.display_name || '',
               city: cityVal,
@@ -221,7 +229,7 @@ export default function BusinessesPage() {
           
           const res = await fetch('/api/v1/businesses/crawl-url', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({ url: biz.website, use_playwright: false }),
             signal: controller.signal
           });
@@ -305,9 +313,7 @@ export default function BusinessesPage() {
 
       const response = await fetch('/api/v1/osm/search', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: authHeaders(),
         body: JSON.stringify(payload)
       });
       
@@ -331,7 +337,9 @@ export default function BusinessesPage() {
   async function loadSavedBusinesses() {
     setBizLoading(true);
     try {
-      const res = await fetch('/api/v1/businesses?per_page=100');
+      const res = await fetch('/api/v1/businesses?per_page=100', {
+        headers: authHeaders()
+      });
       if (res.ok) {
         const data = await res.json();
         setBusinesses(data.businesses || []);
@@ -368,7 +376,7 @@ export default function BusinessesPage() {
 
       const response = await fetch('/api/v1/businesses', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -396,7 +404,7 @@ export default function BusinessesPage() {
     try {
       const response = await fetch('/api/v1/businesses/crawl-url', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ url: biz.website, use_playwright: true }),
       });
 
@@ -450,7 +458,7 @@ export default function BusinessesPage() {
     try {
       const response = await fetch(`/api/v1/businesses/${bizId}/crawl?use_playwright=true`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
       });
       if (response.ok) {
         const data = await response.json();
@@ -480,7 +488,10 @@ export default function BusinessesPage() {
   async function deleteBusiness(id) {
     if (!confirm('Delete this business?')) return;
     try {
-      const res = await fetch(`/api/v1/businesses/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/v1/businesses/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders()
+      });
       if (res.ok) {
         showToast('Business deleted', 'success');
         loadSavedBusinesses();

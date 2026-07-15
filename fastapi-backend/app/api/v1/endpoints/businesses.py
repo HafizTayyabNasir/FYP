@@ -1,241 +1,118 @@
 """
-Businesses Endpoint - Manage discovered businesses
+Businesses Endpoint - Manage discovered businesses (per-user, DB-backed)
 """
 import asyncio
+import uuid
 from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor
-import json
-import os
-from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import update, delete
 
-from app.schemas.business import (
-    BusinessData,
-    BusinessListResponse
-)
+from app.api.deps import get_current_active_user
+from app.db.session import get_db
+from app.models.user import User
+from app.models.saved_business import SavedBusiness
 
 router = APIRouter()
-
-# Simple file-based storage for demo purposes
-# In production, use a proper database
-DATA_DIR = Path(__file__).parent.parent.parent.parent.parent / "data"
-BUSINESSES_FILE = DATA_DIR / "businesses.json"
 
 executor = ThreadPoolExecutor(max_workers=4)
 
 
-def _ensure_data_dir():
-    """Ensure data directory exists"""
-    DATA_DIR.mkdir(exist_ok=True)
-    if not BUSINESSES_FILE.exists():
-        BUSINESSES_FILE.write_text("[]")
+def _biz_to_dict(b: SavedBusiness) -> dict:
+    return {
+        "id": str(b.id),
+        "business_name": b.business_name,
+        "website": b.website,
+        "email": b.email,
+        "phone": b.phone,
+        "address": b.address,
+        "city": b.city,
+        "country": b.country,
+        "category": b.category,
+        "notes": b.notes,
+        "facebook": b.facebook,
+        "instagram": b.instagram,
+        "lat": b.lat,
+        "lon": b.lon,
+        "audit_completed": b.audit_completed,
+        "overall_score": b.overall_score,
+        "seo_score": b.seo_score,
+        "ssl_score": b.ssl_score,
+        "load_speed_score": b.load_speed_score,
+        "responsiveness_score": b.responsiveness_score,
+        "social_links_score": b.social_links_score,
+        "image_alt_score": b.image_alt_score,
+        "audit_summary": b.audit_summary,
+        "audit_recommendations": b.audit_recommendations,
+        "created_at": b.created_at.isoformat() if b.created_at else None,
+    }
 
 
-def _load_businesses() -> List[dict]:
-    """Load businesses from storage"""
-    _ensure_data_dir()
-    try:
-        return json.loads(BUSINESSES_FILE.read_text())
-    except:
-        return []
-
-
-def _save_businesses(businesses: List[dict]):
-    """Save businesses to storage"""
-    _ensure_data_dir()
-    BUSINESSES_FILE.write_text(json.dumps(businesses, indent=2, default=str))
-
-
-@router.get("", response_model=BusinessListResponse)
+@router.get("")
 async def list_businesses(
     page: int = Query(1, ge=1),
     per_page: int = Query(1000, ge=1, le=10000),
     has_email: Optional[bool] = None,
     has_audit: Optional[bool] = None,
-    industry: Optional[str] = None
+    industry: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
-    List all discovered businesses with pagination and filtering.
+    List all saved businesses for the current user.
     """
-    businesses = _load_businesses()
-    
-    # Apply filters
+    query = select(SavedBusiness).where(SavedBusiness.user_id == current_user.id)
+
     if has_email is not None:
-        businesses = [b for b in businesses if bool(b.get("email")) == has_email]
-    
+        if has_email:
+            query = query.where(SavedBusiness.email.isnot(None))
+        else:
+            query = query.where(SavedBusiness.email.is_(None))
+
     if has_audit is not None:
-        businesses = [b for b in businesses if b.get("audit_completed", False) == has_audit]
-    
+        query = query.where(SavedBusiness.audit_completed == has_audit)
+
     if industry:
-        businesses = [b for b in businesses if industry.lower() in (b.get("industry") or "").lower()]
-    
-    # Pagination
-    total = len(businesses)
+        query = query.where(SavedBusiness.category.ilike(f"%{industry}%"))
+
+    query = query.order_by(SavedBusiness.created_at.desc())
+
+    result = await db.execute(query)
+    all_businesses = result.scalars().all()
+    total = len(all_businesses)
+
     start = (page - 1) * per_page
     end = start + per_page
-    paginated = businesses[start:end]
-    
-    return BusinessListResponse(
-        total=total,
-        page=page,
-        per_page=per_page,
-        businesses=paginated
-    )
+    paginated = all_businesses[start:end]
 
-
-@router.get("/{business_id}")
-async def get_business(business_id: str):
-    """
-    Get a specific business by ID.
-    """
-    businesses = _load_businesses()
-    
-    for business in businesses:
-        if business.get("id") == business_id:
-            return business
-    
-    raise HTTPException(status_code=404, detail="Business not found")
-
-
-@router.post("/save")
-async def save_businesses(businesses: List[dict]):
-    """
-    Save a list of businesses (from OSM search).
-    """
-    existing = _load_businesses()
-    existing_ids = {b.get("id") for b in existing}
-    
-    added = 0
-    for business in businesses:
-        if business.get("id") not in existing_ids:
-            existing.append(business)
-            added += 1
-    
-    _save_businesses(existing)
-    
     return {
-        "message": f"Saved {added} new businesses",
-        "total": len(existing)
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "businesses": [_biz_to_dict(b) for b in paginated],
     }
 
 
-@router.put("/{business_id}")
-async def update_business(business_id: str, updates: dict):
-    """
-    Update a business record.
-    """
-    businesses = _load_businesses()
-    
-    for i, business in enumerate(businesses):
-        if business.get("id") == business_id:
-            businesses[i].update(updates)
-            _save_businesses(businesses)
-            return businesses[i]
-    
-    raise HTTPException(status_code=404, detail="Business not found")
-
-
-@router.delete("/{business_id}")
-async def delete_business(business_id: str):
-    """
-    Delete a business record.
-    """
-    businesses = _load_businesses()
-    original_count = len(businesses)
-    
-    businesses = [b for b in businesses if b.get("id") != business_id]
-    
-    if len(businesses) == original_count:
-        raise HTTPException(status_code=404, detail="Business not found")
-    
-    _save_businesses(businesses)
-    return {"message": "Business deleted"}
-
-
-@router.post("/{business_id}/audit")
-async def run_audit_for_business(business_id: str):
-    """
-    Run a website audit for a specific business.
-    """
-    from app.services.website_audit.orchestrator import WebsiteAuditOrchestrator
-    
-    businesses = _load_businesses()
-    business = None
-    business_idx: int = -1
-    
-    for i, b in enumerate(businesses):
-        if b.get("id") == business_id:
-            business = b
-            business_idx = i
-            break
-    
-    if not business or business_idx < 0:
-        raise HTTPException(status_code=404, detail="Business not found")
-    
-    if not business.get("website"):
-        raise HTTPException(status_code=400, detail="Business has no website")
-    
-    try:
-        orchestrator = WebsiteAuditOrchestrator()
-        
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            executor,
-            lambda: orchestrator.run_audit(business["website"])
-        )
-        
-        # Update business with audit results - cast to list of dicts for proper indexing
-        biz_list = list(businesses)
-        biz_list[business_idx]["audit_completed"] = True
-        biz_list[business_idx]["seo_score"] = result.seo.score if result.seo else 0
-        biz_list[business_idx]["ssl_score"] = result.ssl.score if result.ssl else 0
-        biz_list[business_idx]["load_speed_score"] = result.load_speed.score if result.load_speed else 0
-        biz_list[business_idx]["responsiveness_score"] = result.responsiveness.score if result.responsiveness else 0
-        biz_list[business_idx]["social_links_score"] = result.social_links.score if result.social_links else 0
-        biz_list[business_idx]["image_alt_score"] = result.image_alt.score if result.image_alt else 0
-        biz_list[business_idx]["overall_score"] = result.overall_score
-        biz_list[business_idx]["audit_summary"] = result.summary
-        biz_list[business_idx]["audit_recommendations"] = result.recommendations
-        
-        _save_businesses(biz_list)
-        
-        return {
-            "business_id": business_id,
-            "audit_completed": True,
-            "overall_score": result.overall_score,
-            "scores": {
-                "seo": result.seo.score if result.seo else 0,
-                "ssl": result.ssl.score if result.ssl else 0,
-                "load_speed": result.load_speed.score if result.load_speed else 0,
-                "responsiveness": result.responsiveness.score if result.responsiveness else 0,
-                "social_links": result.social_links.score if result.social_links else 0,
-                "image_alt": result.image_alt.score if result.image_alt else 0
-            },
-            "summary": result.summary,
-            "recommendations": result.recommendations
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/stats/summary")
-async def get_business_stats():
-    """
-    Get summary statistics for all businesses.
-    """
-    businesses = _load_businesses()
-    
+async def get_business_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    result = await db.execute(
+        select(SavedBusiness).where(SavedBusiness.user_id == current_user.id)
+    )
+    businesses = result.scalars().all()
+
     total = len(businesses)
-    with_email = sum(1 for b in businesses if b.get("email"))
-    with_website = sum(1 for b in businesses if b.get("website"))
-    audited = sum(1 for b in businesses if b.get("audit_completed"))
-    
-    # Score distribution
-    scores = [b.get("overall_score", 0) for b in businesses if b.get("audit_completed")]
+    with_email = sum(1 for b in businesses if b.email)
+    with_website = sum(1 for b in businesses if b.website)
+    audited = sum(1 for b in businesses if b.audit_completed)
+    scores = [b.overall_score for b in businesses if b.audit_completed and b.overall_score]
     avg_score = sum(scores) / len(scores) if scores else 0
-    
+
     return {
         "total_businesses": total,
         "with_email": with_email,
@@ -246,146 +123,292 @@ async def get_business_stats():
             "excellent": sum(1 for s in scores if s >= 4),
             "good": sum(1 for s in scores if 3 <= s < 4),
             "fair": sum(1 for s in scores if 2 <= s < 3),
-            "poor": sum(1 for s in scores if s < 2)
-        }
+            "poor": sum(1 for s in scores if s < 2),
+        },
     }
 
 
-@router.post("/{business_id}/crawl")
-async def crawl_business_website(business_id: str, use_playwright: bool = True):
-    """
-    Advanced crawl for saved business website to extract email, phone, and social media.
-    Uses Playwright for JavaScript-rendered websites when use_playwright=True.
-    """
-    businesses = _load_businesses()
-    business = None
-    business_idx: int = -1
-    
-    for i, b in enumerate(businesses):
-        if b.get("id") == business_id:
-            business = b
-            business_idx = i
-            break
-    
-    if not business or business_idx < 0:
+@router.get("/{business_id}")
+async def get_business(
+    business_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    result = await db.execute(
+        select(SavedBusiness).where(
+            SavedBusiness.id == uuid.UUID(business_id),
+            SavedBusiness.user_id == current_user.id,
+        )
+    )
+    business = result.scalars().first()
+    if not business:
         raise HTTPException(status_code=404, detail="Business not found")
-    
-    if not business.get("website"):
+    return _biz_to_dict(business)
+
+
+@router.post("/save")
+async def save_businesses(
+    businesses: List[dict],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Save a list of businesses (from OSM search) for the current user.
+    """
+    added = 0
+    for biz in businesses:
+        new_biz = SavedBusiness(
+            user_id=current_user.id,
+            business_name=biz.get("business_name", "") or biz.get("name", "") or biz.get("display_name", ""),
+            website=biz.get("website"),
+            email=biz.get("email"),
+            phone=biz.get("phone"),
+            address=biz.get("address"),
+            city=biz.get("city"),
+            country=biz.get("country"),
+            category=biz.get("category"),
+            notes=biz.get("notes"),
+            lat=biz.get("lat"),
+            lon=biz.get("lon"),
+        )
+        db.add(new_biz)
+        added += 1
+
+    await db.commit()
+
+    result = await db.execute(
+        select(SavedBusiness).where(SavedBusiness.user_id == current_user.id)
+    )
+    total = len(result.scalars().all())
+
+    return {"message": f"Saved {added} new businesses", "total": total}
+
+
+@router.post("")
+async def create_business(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Save a single business for the current user.
+    """
+    new_biz = SavedBusiness(
+        user_id=current_user.id,
+        business_name=data.get("business_name", "") or data.get("name", "") or data.get("display_name", ""),
+        website=data.get("website"),
+        email=data.get("email"),
+        phone=data.get("phone"),
+        address=data.get("address"),
+        city=data.get("city"),
+        country=data.get("country"),
+        category=data.get("category"),
+        notes=data.get("notes"),
+        lat=data.get("lat"),
+        lon=data.get("lon"),
+    )
+    db.add(new_biz)
+    await db.commit()
+    await db.refresh(new_biz)
+    return _biz_to_dict(new_biz)
+
+
+@router.put("/{business_id}")
+async def update_business(
+    business_id: str,
+    updates: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    result = await db.execute(
+        select(SavedBusiness).where(
+            SavedBusiness.id == uuid.UUID(business_id),
+            SavedBusiness.user_id == current_user.id,
+        )
+    )
+    business = result.scalars().first()
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    allowed = {
+        "business_name", "website", "email", "phone", "address", "city", "country",
+        "category", "notes", "facebook", "instagram", "lat", "lon",
+        "audit_completed", "overall_score", "seo_score", "ssl_score",
+        "load_speed_score", "responsiveness_score", "social_links_score",
+        "image_alt_score", "audit_summary", "audit_recommendations",
+    }
+    for key, value in updates.items():
+        if key in allowed:
+            setattr(business, key, value)
+
+    await db.commit()
+    await db.refresh(business)
+    return _biz_to_dict(business)
+
+
+@router.delete("/{business_id}")
+async def delete_business(
+    business_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    result = await db.execute(
+        select(SavedBusiness).where(
+            SavedBusiness.id == uuid.UUID(business_id),
+            SavedBusiness.user_id == current_user.id,
+        )
+    )
+    business = result.scalars().first()
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    await db.delete(business)
+    await db.commit()
+    return {"message": "Business deleted"}
+
+
+@router.post("/{business_id}/audit")
+async def run_audit_for_business(
+    business_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    from app.services.website_audit.orchestrator import WebsiteAuditOrchestrator
+
+    result = await db.execute(
+        select(SavedBusiness).where(
+            SavedBusiness.id == uuid.UUID(business_id),
+            SavedBusiness.user_id == current_user.id,
+        )
+    )
+    business = result.scalars().first()
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    if not business.website:
         raise HTTPException(status_code=400, detail="Business has no website")
-    
-    # Allow re-crawl even if email exists (to find/update Facebook, Instagram, phone)
-    
-    url = business["website"]
+
+    try:
+        orchestrator = WebsiteAuditOrchestrator()
+        loop = asyncio.get_event_loop()
+        audit_result = await loop.run_in_executor(
+            executor, lambda: orchestrator.run_audit(business.website)
+        )
+
+        business.audit_completed = True
+        business.overall_score = audit_result.overall_score
+        business.seo_score = audit_result.seo.score if audit_result.seo else 0
+        business.ssl_score = audit_result.ssl.score if audit_result.ssl else 0
+        business.load_speed_score = audit_result.load_speed.score if audit_result.load_speed else 0
+        business.responsiveness_score = audit_result.responsiveness.score if audit_result.responsiveness else 0
+        business.social_links_score = audit_result.social_links.score if audit_result.social_links else 0
+        business.image_alt_score = audit_result.image_alt.score if audit_result.image_alt else 0
+        business.audit_summary = audit_result.summary
+        business.audit_recommendations = str(audit_result.recommendations)
+
+        await db.commit()
+        await db.refresh(business)
+
+        return {
+            "business_id": business_id,
+            "audit_completed": True,
+            "overall_score": audit_result.overall_score,
+            "scores": {
+                "seo": audit_result.seo.score if audit_result.seo else 0,
+                "ssl": audit_result.ssl.score if audit_result.ssl else 0,
+                "load_speed": audit_result.load_speed.score if audit_result.load_speed else 0,
+                "responsiveness": audit_result.responsiveness.score if audit_result.responsiveness else 0,
+                "social_links": audit_result.social_links.score if audit_result.social_links else 0,
+                "image_alt": audit_result.image_alt.score if audit_result.image_alt else 0,
+            },
+            "summary": audit_result.summary,
+            "recommendations": audit_result.recommendations,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{business_id}/crawl")
+async def crawl_business_website(
+    business_id: str,
+    use_playwright: bool = True,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    result = await db.execute(
+        select(SavedBusiness).where(
+            SavedBusiness.id == uuid.UUID(business_id),
+            SavedBusiness.user_id == current_user.id,
+        )
+    )
+    business = result.scalars().first()
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found")
+
+    if not business.website:
+        raise HTTPException(status_code=400, detail="Business has no website")
+
+    url = business.website
     if not url.startswith(("http://", "https://")):
         url = f"https://{url}"
-    
+
     try:
-        if use_playwright:
-            # Use Playwright for JS-rendered websites
-            from app.services.scraping import scrape_website_for_contacts
-            
-            contacts = await scrape_website_for_contacts(url, timeout=30000, max_pages=15)
-            
-            # Update business with found data
-            updated = False
-            biz_list = list(businesses)
-            
-            if contacts.best_email:
-                biz_list[business_idx]["email"] = contacts.best_email
-                updated = True
-                
-            if contacts.best_phone and not biz_list[business_idx].get("phone"):
-                biz_list[business_idx]["phone"] = contacts.best_phone
-                updated = True
-                
-            if contacts.facebook and not biz_list[business_idx].get("facebook"):
-                biz_list[business_idx]["facebook"] = contacts.facebook
-                updated = True
-                
-            if contacts.instagram and not biz_list[business_idx].get("instagram"):
-                biz_list[business_idx]["instagram"] = contacts.instagram
-                updated = True
-            
-            if updated:
-                _save_businesses(biz_list)
-            
-            return {
-                "email": contacts.best_email,
-                "phone": contacts.best_phone,
-                "facebook": contacts.facebook,
-                "instagram": contacts.instagram,
-                "twitter": contacts.twitter,
-                "linkedin": contacts.linkedin,
-                "all_emails": contacts.emails,
-                "all_phones": contacts.phones,
-                "pages_crawled": len(contacts.pages_crawled),
-                "message": f"Found {len(contacts.emails)} emails, {len(contacts.phones)} phones" if contacts.emails else "No email found after comprehensive search"
-            }
-        else:
-            # Fallback to httpx-based scraping
-            return await _crawl_with_httpx(url, businesses, business_idx)
-            
+        from app.services.scraping import scrape_website_for_contacts
+
+        contacts = await scrape_website_for_contacts(url, timeout=30000, max_pages=15)
+
+        if contacts.best_email:
+            business.email = contacts.best_email
+        if contacts.best_phone and not business.phone:
+            business.phone = contacts.best_phone
+        if contacts.facebook and not business.facebook:
+            business.facebook = contacts.facebook
+        if contacts.instagram and not business.instagram:
+            business.instagram = contacts.instagram
+
+        await db.commit()
+        await db.refresh(business)
+
+        return {
+            "email": contacts.best_email,
+            "phone": contacts.best_phone,
+            "facebook": contacts.facebook,
+            "instagram": contacts.instagram,
+            "twitter": contacts.twitter,
+            "linkedin": contacts.linkedin,
+            "all_emails": contacts.emails,
+            "all_phones": contacts.phones,
+            "pages_crawled": len(contacts.pages_crawled),
+            "message": f"Found {len(contacts.emails)} emails" if contacts.emails else "No email found",
+        }
     except Exception as e:
-        # Try httpx fallback if Playwright fails
-        try:
-            return await _crawl_with_httpx(url, businesses, business_idx)
-        except Exception as e2:
-            raise HTTPException(status_code=500, detail=f"Crawl failed: {str(e)}. Fallback also failed: {str(e2)}")
-
-
-async def _crawl_with_httpx(url: str, businesses: list, business_idx: int) -> dict:
-    from app.services.scraping.website_scraper import _scrape_with_httpx_async
-    try:
-        contacts = await _scrape_with_httpx_async(url, timeout=10)
-        if contacts.best_email or contacts.best_phone or contacts.facebook or contacts.instagram:
-            businesses[business_idx]["email"] = contacts.best_email or businesses[business_idx].get("email")
-            businesses[business_idx]["phone"] = contacts.best_phone or businesses[business_idx].get("phone")
-            businesses[business_idx]["facebook"] = contacts.facebook or businesses[business_idx].get("facebook")
-            businesses[business_idx]["instagram"] = contacts.instagram or businesses[business_idx].get("instagram")
-            _save_businesses(businesses)
-            return {
-                "email": contacts.best_email, 
-                "phone": contacts.best_phone,
-                "facebook": contacts.facebook,
-                "instagram": contacts.instagram,
-                "message": "Extracted contacts via fallback", 
-                "pages_checked": len(contacts.pages_crawled)
-            }
-        return {"email": None, "message": "No contacts found", "pages_checked": len(contacts.pages_crawled)}
-    except Exception as e:
-        return {"email": None, "message": str(e), "pages_checked": 0}
-
+        raise HTTPException(status_code=500, detail=f"Crawl failed: {str(e)}")
 
 
 @router.post("/crawl-url")
-async def crawl_website_url(data: dict):
-    """
-    Advanced website scraping to extract email, phone, and social media.
-    Uses Playwright for JavaScript-rendered websites with httpx fallback.
-    """
+async def crawl_website_url(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
     import logging
+    import concurrent.futures
+    from urllib.parse import urlparse
     logger = logging.getLogger(__name__)
-    
+
     url = data.get("url")
     use_playwright = data.get("use_playwright", True)
-    
+
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
-    
+
     if not url.startswith(("http://", "https://")):
         url = f"https://{url}"
-    
-    playwright_error = None
-    
+
     if use_playwright:
         try:
-            # Use Playwright for JS-rendered websites
             from app.services.scraping import scrape_website_for_contacts
-            
-            logger.info(f"Starting Playwright crawl for {url}")
             contacts = await scrape_website_for_contacts(url, timeout=30000, max_pages=15)
-            logger.info(f"Playwright found: {len(contacts.emails)} emails, {len(contacts.phones)} phones")
-            
             return {
                 "email": contacts.best_email,
                 "phone": contacts.best_phone,
@@ -401,38 +424,23 @@ async def crawl_website_url(data: dict):
                 "pages_checked": len(contacts.pages_crawled),
                 "all_emails": contacts.emails[:10],
                 "all_phones": contacts.phones[:10],
-                "message": f"Found {len(contacts.emails)} email(s), {len(contacts.phones)} phone(s)" if contacts.emails or contacts.phones else "No contact info found",
-                "method": "playwright"
+                "message": f"Found {len(contacts.emails)} email(s)" if contacts.emails else "No contact info found",
+                "method": "playwright",
             }
         except Exception as e:
-            playwright_error = str(e)
-            logger.warning(f"Playwright failed for {url}: {e}, falling back to httpx")
-    
-    # Fallback to httpx-based scraping
-    try:
-        result = await _crawl_url_with_httpx(url)
-        result["method"] = "httpx_fallback"
-        if playwright_error:
-            result["playwright_error"] = playwright_error
-        return result
-    except Exception as e2:
-        raise HTTPException(status_code=500, detail=f"Crawl failed. Playwright: {playwright_error}. Httpx: {str(e2)}")
+            logger.warning(f"Playwright failed for {url}: {e}")
 
-
-async def _crawl_url_with_httpx(url: str) -> dict:
+    # httpx fallback
     from app.services.scraping.website_scraper import _scrape_with_httpx_async, _ddg_email_search
     from urllib.parse import urlparse
-    import asyncio
-    import concurrent.futures
-    
+
     contacts_data = {
         "email": None, "phone": None, "facebook": None, "instagram": None,
         "twitter": None, "linkedin": None, "url": url,
         "emails_found": 0, "phones_found": 0, "pages_checked": 0,
         "all_emails": [], "all_phones": [],
-        "message": "No contacts found", "method": "httpx_fallback"
+        "message": "No contacts found", "method": "httpx_fallback",
     }
-
     try:
         contacts = await _scrape_with_httpx_async(url, timeout=10)
         contacts_data.update({
@@ -447,64 +455,54 @@ async def _crawl_url_with_httpx(url: str) -> dict:
             "pages_checked": len(contacts.pages_crawled),
             "all_emails": contacts.emails[:5],
             "all_phones": contacts.phones[:5],
-            "message": f"Found {len(contacts.emails)} email(s), {len(contacts.phones)} phone(s)"
+            "message": f"Found {len(contacts.emails)} email(s)",
         })
     except Exception as e:
         contacts_data["message"] = str(e)
 
-    # Fast DDG Search Fallback if no email found (bypasses Playwright/Cloudflare)
     if not contacts_data["email"]:
         parsed = urlparse(url)
-        domain = parsed.netloc.lstrip('www.')
+        domain = parsed.netloc.lstrip("www.")
         if domain:
-            try:
-                loop = asyncio.get_event_loop()
-                with concurrent.futures.ThreadPoolExecutor() as ex:
-                    found = await loop.run_in_executor(ex, _ddg_email_search, domain)
-                if found:
-                    contacts_data["email"] = found
-                    contacts_data["emails_found"] = 1
-                    contacts_data["all_emails"] = [found]
-                    contacts_data["message"] = "Found 1 email(s) via search fallback"
-            except Exception:
-                pass
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as ex:
+                found = await loop.run_in_executor(ex, _ddg_email_search, domain)
+            if found:
+                contacts_data["email"] = found
+                contacts_data["emails_found"] = 1
+                contacts_data["all_emails"] = [found]
+                contacts_data["message"] = "Found 1 email via search fallback"
 
     return contacts_data
 
 
-
 @router.post("/extract")
-async def extract_business_data(data: dict):
-    """
-    Extract business data from a website URL using AI.
-    """
+async def extract_business_data(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
     from app.services.agents.business_Data_Extractor_Agent import BusinessDataExtractorAgent
-    
+
     url = data.get("url")
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
-    
+
     try:
         agent = BusinessDataExtractorAgent()
-        
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            executor,
-            lambda: agent.extract_business_data(url)
-        )
-        
+        result = await loop.run_in_executor(executor, lambda: agent.extract_business_data(url))
         return result
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
 
 @router.post("/discover-websites")
-async def discover_websites(data: dict):
-    """
-    Discover official websites for businesses using DuckDuckGo search.
-    Useful for OSM records that don't include website URLs.
-    """
+async def discover_websites(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
     from app.services.osm.website_discovery import discover_websites_bulk
 
     businesses = data.get("businesses", [])
@@ -516,18 +514,12 @@ async def discover_websites(data: dict):
 
     without_website = [b for b in businesses if not b.get("website") and b.get("business_name")]
     if not without_website:
-        return {
-            "businesses": businesses,
-            "discovered_count": 0,
-            "message": "All businesses already have websites",
-        }
+        return {"businesses": businesses, "discovered_count": 0, "message": "All have websites"}
 
     loop = asyncio.get_event_loop()
     updated, discovered_count = await loop.run_in_executor(
-        executor,
-        lambda: discover_websites_bulk(businesses, city, country, verify=True),
+        executor, lambda: discover_websites_bulk(businesses, city, country, verify=True)
     )
-
     return {
         "businesses": updated,
         "discovered_count": discovered_count,
@@ -537,13 +529,11 @@ async def discover_websites(data: dict):
 
 
 @router.post("/discover-website-single")
-async def discover_website_single(data: dict):
-    """
-    Discover the website for a single business via DuckDuckGo search,
-    then immediately scrape it for email, phone, and social media.
-    Uses httpx-only scraping (no Playwright) for speed.
-    Used for progressive row-by-row discovery from the UI.
-    """
+async def discover_website_single(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
     from app.services.osm.website_discovery import discover_website
     from app.services.scraping.website_scraper import _scrape_with_httpx_async
 
@@ -554,15 +544,11 @@ async def discover_website_single(data: dict):
     if not name:
         raise HTTPException(status_code=400, detail="business_name is required")
 
-    # Discover website URL via DuckDuckGo (with timeout guard)
     try:
         loop = asyncio.get_event_loop()
         url = await asyncio.wait_for(
-            loop.run_in_executor(
-                executor,
-                lambda: discover_website(name, city, country, verify=True),
-            ),
-            timeout=30  # 30 second max for DuckDuckGo search
+            loop.run_in_executor(executor, lambda: discover_website(name, city, country, verify=True)),
+            timeout=30,
         )
     except asyncio.TimeoutError:
         url = None
@@ -570,10 +556,8 @@ async def discover_website_single(data: dict):
     contacts = {}
     if url:
         try:
-            # Use httpx-only scraping (fast, no Playwright) — 8s timeout
             scraped = await asyncio.wait_for(
-                _scrape_with_httpx_async(url, timeout=8),
-                timeout=15  # hard cap at 15s for the scrape
+                _scrape_with_httpx_async(url, timeout=8), timeout=15
             )
             contacts = {
                 "email": scraped.best_email,

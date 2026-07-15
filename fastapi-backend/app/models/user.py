@@ -32,6 +32,7 @@ class User(Base, TimestampMixin):
 
     # Relationships
     email_accounts = relationship("EmailAccount", back_populates="user", cascade="all, delete-orphan")
+    saved_businesses = relationship("SavedBusiness", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"
