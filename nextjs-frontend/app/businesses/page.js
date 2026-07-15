@@ -657,10 +657,21 @@ export default function BusinessesPage() {
                         </td>
                         <td className="px-3 py-3 text-slate-500 dark:text-[#8E8BA3] text-xs max-w-[200px] truncate">{biz.address || '-'}</td>
                         <td className="px-3 py-3">
-                          <div className="flex space-x-2">
+                          <div className="flex flex-wrap gap-1.5 items-center">
                             <button onClick={() => openSaveModal(biz)} className="text-xs font-medium text-[#6D5DF6] dark:text-[#A78BFA] hover:text-[#5b4ee4] dark:hover:text-[#A78BFA]">Save</button>
                             {biz.website && (
                               <button onClick={() => goToAudit(biz)} className="text-xs font-medium text-amber-500 hover:text-amber-400">Audit</button>
+                            )}
+                            {biz.website && (
+                              <button
+                                onClick={() => crawlForEmail(biz, i)}
+                                disabled={crawling[i]}
+                                className="text-xs font-medium px-2 py-0.5 rounded bg-[#6D5DF6]/10 text-[#A78BFA] hover:bg-[#6D5DF6]/25 border border-[#6D5DF6]/20 transition-all disabled:opacity-50 disabled:cursor-wait flex items-center gap-1"
+                              >
+                                {crawling[i] ? (
+                                  <><span className="inline-block w-2.5 h-2.5 border-2 border-[#A78BFA] border-t-transparent rounded-full animate-spin"></span> Crawling...</>
+                                ) : '🕷 Crawl'}
+                              </button>
                             )}
                           </div>
                         </td>
