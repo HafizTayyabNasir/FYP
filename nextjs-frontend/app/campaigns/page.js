@@ -79,9 +79,6 @@ export default function CampaignsPage() {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Campaigns</h2>
           <p className="text-sm text-slate-500 dark:text-[#8E8BA3]">Manage your outreach campaigns</p>
         </div>
-        <button onClick={() => setShowCreateModal(true)} className="bg-[#6D5DF6] dark:bg-[#6D5DF6] hover:bg-[#5b4ee4] dark:hover:bg-[#5b4ee4] text-white font-semibold py-2.5 px-5 rounded-lg transition-colors flex items-center">
-          + New Campaign
-        </button>
       </div>
 
       {/* Campaign Stats */}

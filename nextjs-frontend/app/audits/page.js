@@ -35,10 +35,37 @@ function AuditsContent() {
   useEffect(() => {
     loadRecentAudits();
     const wp = searchParams.get('website');
+    
+    // Check session storage first
+    let restoredAudit = null;
+    let restoredBusinessData = null;
+    
+    try {
+      const savedAudit = sessionStorage.getItem('currentAudit');
+      if (savedAudit) restoredAudit = JSON.parse(savedAudit);
+      
+      const savedBiz = sessionStorage.getItem('currentBusinessData');
+      if (savedBiz) restoredBusinessData = JSON.parse(savedBiz);
+    } catch (e) {}
+    
     if (wp) {
       setWebsiteUrl(wp);
-      runAuditFor(wp);
+      if (restoredAudit && restoredAudit.url === wp) {
+        setAuditResult(restoredAudit);
+        if (restoredBusinessData && restoredBusinessData.website_url === wp) {
+          setBusinessData(restoredBusinessData);
+        }
+      } else {
+        runAuditFor(wp);
+      }
+    } else {
+      if (restoredAudit) {
+        setWebsiteUrl(restoredAudit.url);
+        setAuditResult(restoredAudit);
+      }
+      if (restoredBusinessData) setBusinessData(restoredBusinessData);
     }
+
     const saved = sessionStorage.getItem('auditBusiness');
     if (saved) {
       try {
@@ -47,7 +74,23 @@ function AuditsContent() {
         sessionStorage.removeItem('auditBusiness');
       } catch {}
     }
-  }, []);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (auditResult) {
+      sessionStorage.setItem('currentAudit', JSON.stringify(auditResult));
+    } else {
+      sessionStorage.removeItem('currentAudit');
+    }
+  }, [auditResult]);
+
+  useEffect(() => {
+    if (businessData) {
+      sessionStorage.setItem('currentBusinessData', JSON.stringify(businessData));
+    } else {
+      sessionStorage.removeItem('currentBusinessData');
+    }
+  }, [businessData]);
 
   function loadRecentAudits() {
     setRecentAudits(JSON.parse(localStorage.getItem('recentAudits') || '[]'));

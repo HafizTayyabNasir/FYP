@@ -104,9 +104,6 @@ export default function AppShell({ children }) {
               </div>
 
               <div className="flex items-center space-x-3 shrink-0">
-                <button className="bg-[#6D5DF6] hover:bg-[#5b4ee4] text-white font-bold py-2 px-4 md:py-2.5 md:px-5 rounded-xl transition-all duration-300 shadow-sm hover:-translate-y-0.5 text-xs md:text-sm">
-                  New Campaign
-                </button>
                 <button onClick={logout} className="rounded-xl border border-slate-200/80 dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.04] px-4 py-2 md:px-5 md:py-2.5 text-xs md:text-sm font-bold text-slate-700 dark:text-[#C8C4E8] hover:text-slate-900 dark:hover:text-white transition-all duration-300">
                   Logout
                 </button>
