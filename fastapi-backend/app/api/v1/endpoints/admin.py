@@ -10,6 +10,34 @@ from app.models.user import User
 from app.models.pricing_plan import PricingPlan
 from app.schemas.user import User as UserSchema, UserUpdate
 from app.schemas.pricing import PricingPlan as PricingPlanSchema, PricingPlanUpdate
+from app.models.usage_log import UsageLog
+from app.models.payment_history import PaymentHistory
+from pydantic import BaseModel
+from datetime import date
+from typing import Optional
+
+class PaymentHistoryOut(BaseModel):
+    id: str
+    user_id: str
+    amount: float
+    currency: str
+    plan_name: str
+    status: str
+    transaction_id: Optional[str]
+    created_at: date
+
+    class Config:
+        from_attributes = True
+
+class UsageLogOut(BaseModel):
+    id: str
+    user_id: str
+    usage_date: date
+    emails_sent: int
+    ai_generations: int
+
+    class Config:
+        from_attributes = True
 
 router = APIRouter()
 
@@ -121,12 +149,41 @@ async def get_stats(
     result = await db.execute(select(func.count(User.id)).where(User.plan == "team"))
     team_users = result.scalar_one()
     
+    # Total emails sent
+    result = await db.execute(select(func.sum(UsageLog.emails_sent)))
+    total_emails = result.scalar_one_or_none() or 0
+    
     return {
         "total_users": total_users,
         "verified_users": verified_users,
+        "total_emails_sent": total_emails,
         "plans": {
             "individual": individual_users,
             "team": team_users,
             "none": total_users - individual_users - team_users
         }
     }
+
+@router.get("/usage", response_model=List[UsageLogOut])
+async def get_usage_logs(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(deps.get_admin_user)
+) -> Any:
+    result = await db.execute(select(UsageLog).order_by(UsageLog.usage_date.desc()).offset(skip).limit(limit))
+    logs = result.scalars().all()
+    # convert UUIDs to strings manually since Pydantic handles str to UUID, but UUID to str might need coercion in older versions, 
+    # but model_validate with from_attributes=True usually handles it.
+    return [UsageLogOut.model_validate(log) for log in logs]
+
+@router.get("/payments", response_model=List[PaymentHistoryOut])
+async def get_payments(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(deps.get_admin_user)
+) -> Any:
+    result = await db.execute(select(PaymentHistory).order_by(PaymentHistory.created_at.desc()).offset(skip).limit(limit))
+    payments = result.scalars().all()
+    return [PaymentHistoryOut.model_validate(p) for p in payments]

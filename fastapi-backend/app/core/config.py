@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     BACKEND_URL: str = Field(default="http://localhost:8000")
     FRONTEND_URL: str = Field(default="http://localhost:3000")
 
+    # Admin Portal Credentials
+    ADMIN_EMAIL: str = Field(default="admin@example.com")
+    ADMIN_PASSWORD: str = Field(default="admin123")
+
     # Templates
     TEMPLATES_DIR: Path = Path(__file__).parent.parent / "templates"
     STATIC_DIR: Path = Path(__file__).parent.parent / "static"

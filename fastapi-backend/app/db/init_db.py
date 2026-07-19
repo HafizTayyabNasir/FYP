@@ -51,15 +51,19 @@ async def seed_pricing_plans(session: AsyncSession) -> None:
 async def seed_admin_user(session: AsyncSession) -> None:
     """Seed the default admin user."""
     from sqlalchemy import select
+    from app.core.config import settings
     
-    result = await session.execute(select(User).where(User.email == "admin@elvionsolutions.com"))
+    admin_email = settings.ADMIN_EMAIL
+    admin_password = settings.ADMIN_PASSWORD
+    
+    result = await session.execute(select(User).where(User.email == admin_email))
     if result.scalars().first():
         return # Admin already exists
         
     admin = User(
         full_name="Admin",
-        email="admin@elvionsolutions.com",
-        hashed_password=get_password_hash("admin123"),
+        email=admin_email,
+        hashed_password=get_password_hash(admin_password),
         is_verified=True,
         is_active=True,
         role="admin",
