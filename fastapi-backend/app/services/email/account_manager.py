@@ -56,6 +56,7 @@ async def _send_google(
             client_id=client_id,
             client_secret=client_secret,
             refresh_token=refresh_token,
+            from_email=account.email_address,
             from_name=account.display_name or account.email_address,
             to_email=to_email,
             subject=subject,

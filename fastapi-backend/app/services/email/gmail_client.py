@@ -195,6 +195,7 @@ def send_email(
     client_id: str,
     client_secret: str,
     refresh_token: str,
+    from_email: str,
     from_name: str,
     to_email: str,
     subject: str,
@@ -203,9 +204,6 @@ def send_email(
     reply_to: Optional[str] = None,
 ) -> dict:
     service = _build_service(client_id, client_secret, refresh_token)
-
-    profile = service.users().getProfile(userId="me").execute()
-    from_email = profile.get("emailAddress", "")
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
