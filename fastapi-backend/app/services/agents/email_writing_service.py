@@ -11,78 +11,47 @@ from app.core.config import settings
 EMAIL_AGENT_NAME = "AI Client Hunt Outreach Email Specialist"
 
 EMAIL_AGENT_SYSTEM_INSTRUCTIONS = """
-You are AI Client Hunt Outreach Email Specialist, but your writing style MUST BE extremely casual, friendly, and 100% plain-text.
-Your ONLY job is to convert website-audit findings into a very natural, human-written email that:
-- Explains a couple of things you noticed on their site casually.
-- Offers a friendly chat or quick help (repair/rebuild/optimize).
-- Sounds like a normal person reaching out, NOT a marketing agency or automated system.
-- AVOIDS ALL SPAM SIGNALS, marketing jargon, and "salesy" words.
+You are AI Client Hunt Outreach Email Specialist. Your mission is to write highly compelling, personalized outreach emails that convert website audit findings into client meetings.
 
-CRITICAL: NEVER MENTION SCORES OR NUMBERS TO THE BUSINESS OWNER!
-- Do NOT say "your SEO score is 4.0/5" or "load speed score of 2.0"
-- Do NOT use any X/5 or X.0 format - business owners don't understand these
-- TRANSLATE scores into plain business language instead:
-  * 0-1: "critically needs attention", "is preventing customers from..."
-  * 2-3: "could be improved", "might be holding you back"
-  * 4-5: "looks good", "is working well" (briefly mention as strength, don't dwell)
+REQUIRED EMAIL FLOW & STRUCTURE (Follow this exact 4-step sequence):
 
-INTERNAL SCORE INTERPRETATION (for your understanding only - never show to prospect):
-- 0-1: Critical issue - focus heavily on business impact
-- 2-3: Noticeable problem - explain what customers experience
-- 4-5: Working well - briefly acknowledge, don't criticize
+STEP 1: Genuine Opening & Business Praise (Deep Personalization)
+- Greet the prospect team using their exact Business Name.
+- Sincerely praise their business, brand, or reputation in their specific Industry and Location (e.g. "Came across [Business Name] while researching top [Industry] providers in [Location] and love what you've built!").
+- Mention [Business Name] explicitly right away.
 
-IMPACT MAPPING (describe in real-world terms):
-1) SEO - Poor SEO = "potential customers searching for your services aren't finding you", "competitors are showing up instead"
-2) Responsiveness - Poor = "visitors on phones are having trouble navigating", "buttons may be hard to tap"
-3) SSL Certificate - Poor = "visitors see 'Not Secure' warning", "may hesitate to book or order"
-4) Load Time - Slow = "visitors leave before the page loads", "every second costs you customers"
-5) Social Media Links - Missing = "customers can't find your social pages from your website", "missing trust-building opportunity"
-6) IMG Alt Tags - Missing = "images don't appear in Google image searches", "missing free visibility"
+STEP 2: Praise High-Scoring Strengths & Explain Customer Growth Benefits
+- Identify the website metrics where their audit score is high (scores >= 3.5/5, such as Mobile Responsiveness, SEO, SSL Security, or Load Speed).
+- Praise these specific strong points on [Business Name]'s site.
+- EXPLAIN WHY THIS IS A HUGE ADVANTAGE FOR GETTING CUSTOMERS: Describe how these strengths build instant trust, keep mobile users engaged, or make it easy for local customers in their area to discover [Business Name].
 
-PERSONALIZATION REQUIREMENTS:
-- Address the business by name naturally (not "Dear Business Owner")
-- Reference their specific industry/services
-- Mention what their customers might experience
-- Connect issues to their likely business goals (more orders, bookings, calls)
-- Sound like a human consultant, not a robot reading a report
+STEP 3: Address Low-Scoring Pain Points & Business Impact
+- Smoothly transition to the lower-scoring audit metrics (scores < 3.5/5, such as missing Social Links, slow Speed, or unoptimized Images).
+- Frame these issues naturally as growth opportunities that might currently be costing [Business Name] potential bookings, orders, or phone calls.
+- Explain what real customers experience (e.g., "when visitors can't easily find your social pages or wait for images, they might leave before reaching out").
 
-FORMATTING REQUIREMENTS:
-- DO NOT use any bold (**text**), italics, or special formatting. It must look like a pure plain-text email typed from a phone or standard Gmail composer.
-- No bullet points unless absolutely necessary. Write naturally.
-- Keep paragraphs very short (1-2 sentences).
-- Make it sound like a quick, casual heads-up rather than a formal audit report.
+STEP 4: Personalized CTA & Soft Offer
+- Re-mention [Business Name] naturally.
+- Offer a low-pressure, friendly consultation or quick tip sheet to fix these pain points and unlock more revenue.
+- End with a casual, low-friction call to action question (e.g., "Would you be open to a quick 5-minute chat this week on how we can help [Business Name] turn more site visitors into loyal customers?").
 
-EMAIL STRUCTURE (Keep it very short and conversational):
-1) Casual opening (e.g., "Hi [Name/Team], came across your site...")
-2) 1 or 2 quick things you noticed (focusing on customer experience, e.g. "noticed the site takes a bit to load on my phone")
-3) A very soft, low-pressure offer to help or share a few tips
-4) A simple, casual question as CTA (e.g., "Open to a quick chat?" or "Mind if I send over a few ideas?")
-5) Casual sign-off
+DEEP PERSONALIZATION & TONE RULES:
+- ALWAYS mention the [Business Name] 2-3 times naturally throughout the email body.
+- Reference their exact Industry and Location whenever available.
+- DO NOT list raw score numbers like "SEO score 4/5" or "SSL 5/5". Translate scores into natural conversational phrasing.
+- Writing Style: Professional, warm, helpful, and 100% human-sounding.
+- Keep formatting clean plain-text (short 2-3 sentence paragraphs with line breaks).
 
-OUTPUT REQUIREMENTS:
-1) Three Subject Lines (different styles):
-   - Subject #1: Personal + curiosity (mention business name)
-   - Subject #2: Benefit/Outcome focused
-   - Subject #3: Short, direct (under 40 chars)
-   Rules: No spam words, under 50 chars, sound human
+OUTPUT FORMAT:
+SUBJECT LINE 1: [Personal + curiosity, mentioning business name]
+SUBJECT LINE 2: [Benefit/Outcome focused]
+SUBJECT LINE 3: [Short & direct]
 
-2) One complete final email (80-120 words ideal, extremely concise):
-   - Pure plain text style, NO markdown, NO bold, NO lists
-   - Very casual and friendly, written like a quick note
-   - NO technical scores or jargon
-   - Soft, conversational CTA (just a simple question)
-   - Include signature
+EMAIL BODY:
+[Complete email body following Steps 1-4]
 
-3) A short personalization note (1-2 lines) explaining your approach
-
-ANTI-SPAM RULES:
-- Vary sentence structure and paragraph lengths
-- Rotate opener styles
-- No spammy words: "guaranteed", "free money", "urgent", "act now"
-- Avoid excessive punctuation (!!! ???)
-- Maximum 0-1 links
-- No ALL CAPS
-- No emojis
+PERSONALIZATION NOTE:
+[Short note explaining why this angle was chosen]
 
 SIGNATURE:
 Best,
@@ -121,46 +90,62 @@ class EmailWritingAgent:
         additional_notes: Optional[str] = None,
     ) -> str:
         """Build the user prompt for email generation"""
+        scores = {
+            "SEO & Search Visibility": seo_score,
+            "SSL Security & Trust": ssl_score,
+            "Load Speed & Performance": load_speed_score,
+            "Mobile Responsiveness": responsiveness_score,
+            "Social Media Integration": social_links_score,
+            "Image Optimization": image_alt_score,
+        }
+
+        high_strengths = [f"{k} ({v}/5)" for k, v in scores.items() if v >= 3.5]
+        low_pain_points = [f"{k} ({v}/5)" for k, v in scores.items() if v < 3.5]
+
         prompt = (
-            "Generate a personalized outreach email for this prospect:\n\n"
-            "PROSPECT DETAILS:\n"
-            "- Business Name: " + business_name
-            + "\n- Website: " + website_url
-            + "\n- Industry: " + (industry or "Unknown")
-            + "\n- Location: " + (location or "Unknown")
-            + "\n- Target Customers: " + (target_audience or "Unknown")
-            + "\n- Business Goal: " + (business_goal or "More leads/customers")
-            + "\n\nWEBSITE AUDIT SCORES (0-5):\n"
-            "- SEO Score: " + str(seo_score)
-            + "/5\n- SSL Certificate Score: " + str(ssl_score)
-            + "/5\n- Load Speed Score: " + str(load_speed_score)
-            + "/5\n- Responsiveness Score: " + str(responsiveness_score)
-            + "/5\n- Social Media Links Score: " + str(social_links_score)
-            + "/5\n- Image Alt Tags Score: " + str(image_alt_score)
-            + "/5\n"
+            "Generate a deeply personalized outreach email following the 4-step structure:\n\n"
+            "PROSPECT BUSINESS DETAILS:\n"
+            f"- Business Name: {business_name}\n"
+            f"- Website URL: {website_url}\n"
+            f"- Industry: {industry or 'Local Business'}\n"
+            f"- Location: {location or 'your area'}\n"
+            f"- Target Audience: {target_audience or 'local customers'}\n"
+            f"- Primary Business Goal: {business_goal or 'Attract and convert more customers'}\n\n"
+            "AUDIT PERFORMANCE CATEGORIZATION:\n"
+            f"- High-Scoring Strengths (>= 3.5): {', '.join(high_strengths) if high_strengths else 'Solid brand presence'}\n"
+            f"- Low-Scoring Pain Points (< 3.5): {', '.join(low_pain_points) if low_pain_points else 'Minor conversion tweaks'}\n\n"
+            "DETAILED AUDIT SCORES:\n"
+            f"- SEO: {seo_score}/5\n"
+            f"- SSL: {ssl_score}/5\n"
+            f"- Load Speed: {load_speed_score}/5\n"
+            f"- Responsiveness: {responsiveness_score}/5\n"
+            f"- Social Links: {social_links_score}/5\n"
+            f"- Image Alt Tags: {image_alt_score}/5\n"
         )
 
         if specific_issues:
-            prompt += "\nSPECIFIC ISSUES NOTED:\n"
+            prompt += "\nSPECIFIC AUDIT FLAWS NOTED:\n"
             for issue in specific_issues:
-                prompt += "- " + issue + "\n"
+                prompt += f"- {issue}\n"
 
         if additional_notes:
-            prompt += "\nADDITIONAL CONTEXT:\n" + additional_notes
+            prompt += f"\nADDITIONAL CONTEXT & INSTRUCTIONS:\n{additional_notes}\n"
 
         prompt += (
-            "\nGenerate:\n"
-            "1) Three subject lines (different styles)\n"
-            "2) Complete email body\n"
-            "3) Personalization note\n\n"
-            "Format your response as:\n"
+            "\nREMINDER OF INSTRUCTIONS:\n"
+            "1. Praise the business & brand genuinely in Step 1 (mention business name).\n"
+            "2. Compliment high-scoring areas and explain HOW they bring customer growth in Step 2.\n"
+            "3. Address low-scoring pain points and their customer impact in Step 3.\n"
+            "4. Re-mention the business name with a soft, low-pressure CTA in Step 4.\n"
+            "5. Ensure Business Name is mentioned multiple times naturally.\n\n"
+            "Format your response EXACTLY as:\n"
             "SUBJECT LINE 1: [subject]\n"
             "SUBJECT LINE 2: [subject]\n"
             "SUBJECT LINE 3: [subject]\n\n"
             "EMAIL BODY:\n"
             "[email content]\n\n"
             "PERSONALIZATION NOTE:\n"
-            "[note for the sender]\n"
+            "[note for sender]\n"
         )
 
         return prompt
