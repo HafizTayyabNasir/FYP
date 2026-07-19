@@ -44,6 +44,10 @@ export default function AppShell({ children }) {
     }
   }, [isPublicRoute, router, pathname]);
 
+  if (pathname.startsWith('/admin')) {
+    return <>{children}</>;
+  }
+
   if (isPublicRoute) {
     return <PublicShell>{children}</PublicShell>;
   }
