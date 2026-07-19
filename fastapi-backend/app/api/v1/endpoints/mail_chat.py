@@ -8,10 +8,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
+from app.api import deps
+from app.db.session import get_db
+from app.models.user import User
+from app.models.email_account import EmailAccount
 from app.core.config import settings
+from app.core.encryption import decrypt
 
 router = APIRouter()
 
@@ -95,24 +102,38 @@ class SyncRequest(BaseModel):
 # ── inbox: sync + messages ────────────────────────────────────────────────────
 
 @router.post("/sync")
-async def sync_inbox(req: Optional[SyncRequest] = None):
-    """Pull latest emails from Gmail API or IMAP and store locally."""
-    if _gmail_configured():
-        try:
-            import asyncio
-            import concurrent.futures
-            from app.services.email.gmail_client import sync_inbox as _sync
+async def sync_inbox(
+    req: Optional[SyncRequest] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_active_user)
+):
+    """Pull latest emails from connected EmailAccounts (Gmail API) and store locally."""
+    # Find Google Email Accounts for the user
+    result = await db.execute(select(EmailAccount).where(EmailAccount.user_id == current_user.id, EmailAccount.provider == "google", EmailAccount.is_active == True))
+    accounts = result.scalars().all()
+    
+    if accounts:
+        import asyncio
+        import concurrent.futures
+        from app.services.email.gmail_client import sync_inbox as _sync
 
-            loop = asyncio.get_event_loop()
+        loop = asyncio.get_event_loop()
+        results = []
+        for account in accounts:
+            client_id = settings.GOOGLE_CLIENT_ID or settings.GMAIL_CLIENT_ID
+            client_secret = settings.GOOGLE_CLIENT_SECRET or settings.GMAIL_CLIENT_SECRET
+            refresh_token = decrypt(account.refresh_token)
+            
             with concurrent.futures.ThreadPoolExecutor() as ex:
-                result = await loop.run_in_executor(
-                    ex, lambda: _sync(**_gmail_creds())
+                res = await loop.run_in_executor(
+                    ex, lambda: _sync(client_id, client_secret, refresh_token)
                 )
-            return {"success": True, **result}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Gmail sync failed: {e}")
-
-    # Use request credentials if provided, otherwise fallback to .env
+                results.append(res)
+        
+        if results:
+            return {"success": True, "details": results, "note": f"Synced {len(results)} accounts"}
+    
+    # Fallback to IMAP logic for backwards compatibility, if provided in request
     imap_host = req.imap_host if req and req.imap_host else settings.IMAP_HOST
     imap_port = req.imap_port if req and req.imap_port else settings.IMAP_PORT
     imap_user = req.imap_user if req and req.imap_user else settings.SMTP_USER
@@ -135,20 +156,15 @@ async def sync_inbox(req: Optional[SyncRequest] = None):
                     )
                 )
             return {"success": True, **result}
-        except ConnectionError as e:
-            raise HTTPException(status_code=401, detail=str(e))
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"Sync failed: {e}")
+            raise HTTPException(status_code=500, detail=f"IMAP Sync failed: {e}")
 
-    # If only Resend configured (no inbox provider), return sent messages as "synced"
     if _resend_configured():
         return {"success": True, "synced": 0, "note": "Resend is send-only. Sent emails are shown in the Sent folder."}
 
     raise HTTPException(
         status_code=400,
-        detail="Email not configured. Add RESEND_API_KEY, or GMAIL/SMTP credentials to .env"
+        detail="Please connect an Email Account in Settings first."
     )
 
 
@@ -156,18 +172,26 @@ async def sync_inbox(req: Optional[SyncRequest] = None):
 async def get_messages(
     folder: str = Query("inbox"),
     imap_user: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_active_user)
 ):
     """Return emails for inbox or sent folder."""
-    from_name = settings.RESEND_FROM_NAME or settings.SMTP_FROM_NAME or "You"
-    from_email_addr = settings.RESEND_FROM_EMAIL or settings.SMTP_FROM_EMAIL or settings.SMTP_USER or ""
+    # Find Google Email Accounts for the user to determine if we should fetch from Gmail
+    result = await db.execute(select(EmailAccount).where(EmailAccount.user_id == current_user.id))
+    accounts = result.scalars().all()
+    has_google = any(acc.provider == "google" and acc.is_active for acc in accounts)
+    
+    # Use the first account's email as fallback from_email if none in message
+    fallback_email = accounts[0].email_address if accounts else "user@example.com"
+    fallback_name = accounts[0].display_name or fallback_email if accounts else "You"
 
     if folder == "sent":
         all_msgs = _load(MESSAGES_FILE)
         sent = [
             {
                 "id": m["id"],
-                "from_name": from_name,
-                "from_email": m.get("from_email") or from_email_addr,
+                "from_name": m.get("from_name") or fallback_name,
+                "from_email": m.get("from_email") or fallback_email,
                 "to_email": m.get("to_email", ""),
                 "to_name": m.get("to_name", ""),
                 "subject": m.get("subject", ""),
@@ -187,7 +211,7 @@ async def get_messages(
 
     # Inbox: try Gmail, then IMAP, then show inbound messages from data file
     inbox = []
-    if _gmail_configured():
+    if has_google:
         try:
             from app.services.email.gmail_client import get_stored_inbox
             inbox = get_stored_inbox()

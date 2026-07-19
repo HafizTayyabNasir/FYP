@@ -31,8 +31,8 @@ export default function InboxPage() {
       let userQ = imapSettings.username ? `&imap_user=${encodeURIComponent(imapSettings.username)}` : '';
       
       const [inboxRes, sentRes] = await Promise.all([
-        fetch(`/api/v1/mail/messages?folder=inbox${userQ}`),
-        fetch(`/api/v1/mail/messages?folder=sent`)
+        fetch(`/api/v1/mail/messages?folder=inbox${userQ}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        fetch(`/api/v1/mail/messages?folder=sent`, { headers: { Authorization: `Bearer ${getToken()}` } })
       ]);
       
       let all = [];
@@ -131,7 +131,10 @@ export default function InboxPage() {
       const imapSettings = JSON.parse(localStorage.getItem('settings_imap') || '{}');
       const response = await fetch('/api/v1/mail/sync', { 
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
         body: JSON.stringify({
           imap_host: imapSettings.host || null,
           imap_port: imapSettings.port ? parseInt(imapSettings.port) : 993,
@@ -176,7 +179,10 @@ export default function InboxPage() {
       
       const response = await fetch('/api/v1/outreach/generate-reply', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
         body: JSON.stringify({ chat_history: chatHistory, prompt_instruction: aiPrompt })
       });
       
@@ -203,9 +209,12 @@ export default function InboxPage() {
       let sub = lastMsg.subject || 'Follow up';
       if (!sub.toLowerCase().startsWith('re:')) sub = 'Re: ' + sub;
       
-      const response = await fetch('/api/v1/mail/send', {
+      const response = await fetch('/api/v1/outreach/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
         body: JSON.stringify({
           to_email: selectedConversation.contactEmail,
           to_name: selectedConversation.contactName,
