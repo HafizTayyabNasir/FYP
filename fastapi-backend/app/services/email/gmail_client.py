@@ -34,7 +34,9 @@ def _build_service(client_id: str, client_secret: str, refresh_token: str):
         client_secret=client_secret,
         scopes=[
             "https://www.googleapis.com/auth/gmail.send",
-            "https://www.googleapis.com/auth/gmail.readonly"
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile"
         ],
     )
     return build("gmail", "v1", credentials=creds, cache_discovery=False)
