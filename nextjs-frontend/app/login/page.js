@@ -33,6 +33,7 @@ export default function LoginPage() {
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem('access_token', data.token);
+        localStorage.setItem('token', data.token);
         if (data.user && data.user.full_name) {
           localStorage.setItem('user_name', data.user.full_name);
         }
