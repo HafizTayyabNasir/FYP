@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -26,6 +27,17 @@ const navItems = [
 
 export default function Sidebar({ open }) {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user.role === 'admin') setIsAdmin(true);
+      }
+    } catch(e) {}
+  }, []);
 
   const isActive = (href) => {
     if (href === '/dashboard') return pathname === '/dashboard';
@@ -72,6 +84,23 @@ export default function Sidebar({ open }) {
             ))}
           </div>
         ))}
+
+        {isAdmin && (
+          <div className="mt-8">
+            <div className="px-4 mb-2 text-xs font-bold text-slate-400 dark:text-[#6B6890] uppercase tracking-wider">
+              Administration
+            </div>
+            <Link
+              href="/admin"
+              className="flex items-center px-4 py-2.5 text-sm rounded-xl mx-3 my-1 transition-all duration-200 font-medium text-[#6D5DF6] hover:bg-[#6D5DF6]/10"
+            >
+              <svg className="w-5 h-5 mr-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              Admin Portal
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* Sidebar footer */}
