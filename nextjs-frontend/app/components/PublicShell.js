@@ -68,6 +68,11 @@ export default function PublicShell({ children }) {
   const [theme, setTheme] = useState('dark');
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ai-client-hunting-backend.onrender.com';
+    fetch(`${apiUrl}/health`).catch(() => {});
+  }, []);
+
   const deleteAccount = async () => {
     if (!window.confirm("Are you sure you want to delete your account and all associated data? This action cannot be undone.")) return;
     

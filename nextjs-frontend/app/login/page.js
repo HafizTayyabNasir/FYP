@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -11,7 +11,12 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const API = process.env.NEXT_PUBLIC_API_URL || 'https://ai-client-hunting-backend.onrender.com';
+
+  useEffect(() => {
+    // Silent pre-warm ping to wake up Render backend container immediately
+    fetch(`${API}/health`).catch(() => {});
+  }, [API]);
 
   async function handleSubmit(event) {
     event.preventDefault();
