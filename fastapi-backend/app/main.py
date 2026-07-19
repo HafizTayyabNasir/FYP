@@ -1,5 +1,5 @@
 """
-Main FastAPI Application - AI Powered Client Hunt & Outreach
+Main FastAPI Application - AI Powered Client Hunt & Outreach (v1.0.1)
 """
 import os
 from pathlib import Path
