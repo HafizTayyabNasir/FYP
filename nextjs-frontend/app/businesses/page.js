@@ -222,43 +222,90 @@ export default function BusinessesPage() {
       const biz = resultsRef.current[idx];
       if (!biz) break;
       
-      if (biz.website && (!biz.crawled_email || !biz.facebook || !biz.instagram || !biz.phone)) {
+      if (!biz.crawled_email || !biz.website || !biz.facebook || !biz.instagram || !biz.phone) {
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
-          
-          const res = await fetch('/api/v1/businesses/crawl-url', {
-            method: 'POST',
-            headers: authHeaders(),
-            body: JSON.stringify({ url: biz.website, use_playwright: false }),
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (res.ok) {
-            const data = await res.json();
-            if (data.email || data.phone || data.facebook || data.instagram) {
-              crawlingFoundRef.current++;
-              setCrawlingFoundCount(crawlingFoundRef.current);
-            }
-            setResults(prev => {
-              const updated = [...prev];
-              const b = updated[idx];
-              if (!b) return prev;
-              updated[idx] = { 
-                ...b, 
-                crawled_email: data.email || b.crawled_email, 
-                facebook: data.facebook || b.facebook, 
-                instagram: data.instagram || b.instagram, 
-                phone: data.phone || b.phone,
-                source_facebook: (!b.facebook && data.facebook) ? 'website' : b.source_facebook,
-                source_instagram: (!b.instagram && data.instagram) ? 'website' : b.source_instagram,
-                source_email: (!b.crawled_email && data.email) ? 'website' : b.source_email,
-                source_phone: (!b.phone && data.phone) ? 'website' : b.source_phone,
-              };
-              return updated;
+          let currentUrl = biz.website;
+
+          // If website is missing, discover it first
+          if (!currentUrl) {
+            const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
+            const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
+
+            const controllerDisc = new AbortController();
+            const timeoutDisc = setTimeout(() => controllerDisc.abort(), 20000);
+
+            const discRes = await fetch('/api/v1/businesses/discover-website-single', {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({
+                business_name: biz.business_name || biz.name || biz.display_name || '',
+                city: cityVal,
+                country: countryVal
+              }),
+              signal: controllerDisc.signal
             });
+            clearTimeout(timeoutDisc);
+
+            if (discRes.ok) {
+              const discData = await discRes.json();
+              if (discData.website) {
+                currentUrl = discData.website;
+                setResults(prev => {
+                  const updated = [...prev];
+                  if (updated[idx]) {
+                    updated[idx] = {
+                      ...updated[idx],
+                      website: discData.website,
+                      source_website: 'directory',
+                      crawled_email: discData.email || updated[idx].crawled_email,
+                      phone: discData.phone || updated[idx].phone,
+                      facebook: discData.facebook || updated[idx].facebook,
+                      instagram: discData.instagram || updated[idx].instagram,
+                    };
+                  }
+                  return updated;
+                });
+              }
+            }
+          }
+
+          if (currentUrl) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
+            
+            const res = await fetch('/api/v1/businesses/crawl-url', {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({ url: currentUrl, use_playwright: false }),
+              signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (res.ok) {
+              const data = await res.json();
+              if (data.email || data.phone || data.facebook || data.instagram) {
+                crawlingFoundRef.current++;
+                setCrawlingFoundCount(crawlingFoundRef.current);
+              }
+              setResults(prev => {
+                const updated = [...prev];
+                const b = updated[idx];
+                if (!b) return prev;
+                updated[idx] = { 
+                  ...b, 
+                  crawled_email: data.email || b.crawled_email, 
+                  facebook: data.facebook || b.facebook, 
+                  instagram: data.instagram || b.instagram, 
+                  phone: data.phone || b.phone,
+                  source_facebook: (!b.facebook && data.facebook) ? 'website' : b.source_facebook,
+                  source_instagram: (!b.instagram && data.instagram) ? 'website' : b.source_instagram,
+                  source_email: (!b.crawled_email && data.email) ? 'website' : b.source_email,
+                  source_phone: (!b.phone && data.phone) ? 'website' : b.source_phone,
+                };
+                return updated;
+              });
+            }
           }
         } catch (e) {
           console.error(e);
@@ -266,8 +313,7 @@ export default function BusinessesPage() {
       }
       crawlingIndexRef.current++;
       setCrawlingProcessedCount(crawlingIndexRef.current);
-      // 0.3s between crawl requests (httpx-based, fast)
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 400));
     }
     
     if (crawlingStateRef.current === 'running' && crawlingIndexRef.current >= resultsRef.current.length) {
@@ -395,17 +441,56 @@ export default function BusinessesPage() {
   }
 
   async function crawlForEmail(biz, index) {
-    if (!biz.website) {
-      showToast('No website URL available', 'warning');
-      return;
-    }
-
     setCrawling(prev => ({ ...prev, [index]: true }));
     try {
+      let targetUrl = biz.website;
+
+      if (!targetUrl) {
+        const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
+        const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
+
+        const discRes = await fetch('/api/v1/businesses/discover-website-single', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            business_name: biz.business_name || biz.name || biz.display_name || '',
+            city: cityVal,
+            country: countryVal
+          }),
+        });
+
+        if (discRes.ok) {
+          const discData = await discRes.json();
+          if (discData.website) {
+            targetUrl = discData.website;
+            setResults(prev => {
+              const updated = [...prev];
+              if (updated[index]) {
+                updated[index] = {
+                  ...updated[index],
+                  website: discData.website,
+                  source_website: 'directory',
+                  crawled_email: discData.email || updated[index].crawled_email,
+                  phone: discData.phone || updated[index].phone,
+                  facebook: discData.facebook || updated[index].facebook,
+                  instagram: discData.instagram || updated[index].instagram,
+                };
+              }
+              return updated;
+            });
+          }
+        }
+      }
+
+      if (!targetUrl) {
+        showToast('No website found for this business', 'warning');
+        return;
+      }
+
       const response = await fetch('/api/v1/businesses/crawl-url', {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ url: biz.website, use_playwright: true }),
+        body: JSON.stringify({ url: targetUrl, use_playwright: true }),
       });
 
       if (response.ok) {
@@ -415,18 +500,18 @@ export default function BusinessesPage() {
         const b = updated[index];
         let anyFound = false;
         if (foundEmail) {
-          updated[index] = { ...b, crawled_email: foundEmail, source_email: 'website' };
+          updated[index] = { ...updated[index], crawled_email: foundEmail, source_email: 'website' };
           anyFound = true;
         }
-        if (data.facebook && !b.facebook) {
+        if (data.facebook && (!b || !b.facebook)) {
           updated[index] = { ...updated[index], facebook: data.facebook, source_facebook: 'website' };
           anyFound = true;
         }
-        if (data.instagram && !b.instagram) {
+        if (data.instagram && (!b || !b.instagram)) {
           updated[index] = { ...updated[index], instagram: data.instagram, source_instagram: 'website' };
           anyFound = true;
         }
-        if (data.phone && !b.phone) {
+        if (data.phone && (!b || !b.phone)) {
           updated[index] = { ...updated[index], phone: data.phone, source_phone: 'website' };
           anyFound = true;
         }
@@ -641,12 +726,12 @@ export default function BusinessesPage() {
                               {biz.source_email === 'directory' && <span className="text-[10px] text-emerald-400 block mt-0.5">found 🗺️</span>}
                               {biz.source_email === 'website' && <span className="text-[10px] text-[#6D5DF6] dark:text-[#A78BFA] block mt-0.5">found 🌐</span>}
                             </div>
-                          ) : biz.website ? (
+                          ) : (
                             <button onClick={() => crawlForEmail(biz, i)} disabled={crawling[i]}
                               className="text-xs text-[#6D5DF6] dark:text-[#A78BFA] hover:text-[#5b4ee4] dark:hover:text-[#A78BFA] font-medium">
                               {crawling[i] ? 'Crawling...' : '🔍 Find Email'}
                             </button>
-                          ) : '-'}
+                          )}
                         </td>
                         <td className="px-3 py-3 text-slate-500 dark:text-[#8E8BA3]">
                           {biz.facebook ? (
@@ -673,17 +758,15 @@ export default function BusinessesPage() {
                             {biz.website && (
                               <button onClick={() => goToAudit(biz)} className="text-xs font-medium text-amber-500 hover:text-amber-400">Audit</button>
                             )}
-                            {biz.website && (
-                              <button
-                                onClick={() => crawlForEmail(biz, i)}
-                                disabled={crawling[i]}
-                                className="text-xs font-medium px-2 py-0.5 rounded bg-[#6D5DF6]/10 text-[#A78BFA] hover:bg-[#6D5DF6]/25 border border-[#6D5DF6]/20 transition-all disabled:opacity-50 disabled:cursor-wait flex items-center gap-1"
-                              >
-                                {crawling[i] ? (
-                                  <><span className="inline-block w-2.5 h-2.5 border-2 border-[#A78BFA] border-t-transparent rounded-full animate-spin"></span> Crawling...</>
-                                ) : '🕷 Crawl'}
-                              </button>
-                            )}
+                            <button
+                              onClick={() => crawlForEmail(biz, i)}
+                              disabled={crawling[i]}
+                              className="text-xs font-medium px-2 py-0.5 rounded bg-[#6D5DF6]/10 text-[#A78BFA] hover:bg-[#6D5DF6]/25 border border-[#6D5DF6]/20 transition-all disabled:opacity-50 disabled:cursor-wait flex items-center gap-1"
+                            >
+                              {crawling[i] ? (
+                                <><span className="inline-block w-2.5 h-2.5 border-2 border-[#A78BFA] border-t-transparent rounded-full animate-spin"></span> Crawling...</>
+                              ) : '🕷 Crawl'}
+                            </button>
                           </div>
                         </td>
                       </tr>

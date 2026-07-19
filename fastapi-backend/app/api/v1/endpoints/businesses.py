@@ -405,42 +405,16 @@ async def crawl_website_url(
     if not url.startswith(("http://", "https://")):
         url = f"https://{url}"
 
-    if use_playwright:
-        try:
-            from app.services.scraping import scrape_website_for_contacts
-            contacts = await scrape_website_for_contacts(url, timeout=30000, max_pages=15)
-            return {
-                "email": contacts.best_email,
-                "phone": contacts.best_phone,
-                "facebook": contacts.facebook,
-                "instagram": contacts.instagram,
-                "twitter": contacts.twitter,
-                "linkedin": contacts.linkedin,
-                "youtube": contacts.youtube,
-                "tiktok": contacts.tiktok,
-                "url": url,
-                "emails_found": len(contacts.emails),
-                "phones_found": len(contacts.phones),
-                "pages_checked": len(contacts.pages_crawled),
-                "all_emails": contacts.emails[:10],
-                "all_phones": contacts.phones[:10],
-                "message": f"Found {len(contacts.emails)} email(s)" if contacts.emails else "No contact info found",
-                "method": "playwright",
-            }
-        except Exception as e:
-            logger.warning(f"Playwright failed for {url}: {e}")
-
-    # httpx fallback
+    # 1. Fast httpx scrape first
     from app.services.scraping.website_scraper import _scrape_with_httpx_async, _ddg_email_search
-    from urllib.parse import urlparse
-
     contacts_data = {
         "email": None, "phone": None, "facebook": None, "instagram": None,
         "twitter": None, "linkedin": None, "url": url,
         "emails_found": 0, "phones_found": 0, "pages_checked": 0,
         "all_emails": [], "all_phones": [],
-        "message": "No contacts found", "method": "httpx_fallback",
+        "message": "No contacts found", "method": "httpx",
     }
+
     try:
         contacts = await _scrape_with_httpx_async(url, timeout=10)
         contacts_data.update({
@@ -458,8 +432,33 @@ async def crawl_website_url(
             "message": f"Found {len(contacts.emails)} email(s)",
         })
     except Exception as e:
-        contacts_data["message"] = str(e)
+        logger.debug(f"httpx scrape failed for {url}: {e}")
 
+    # 2. Playwright fallback if email was not found by httpx (or if playwrght explicit)
+    if not contacts_data["email"]:
+        try:
+            from app.services.scraping import scrape_website_for_contacts
+            pw_contacts = await scrape_website_for_contacts(url, timeout=25000, max_pages=12)
+            if pw_contacts and (pw_contacts.best_email or pw_contacts.best_phone or pw_contacts.facebook or pw_contacts.instagram):
+                contacts_data.update({
+                    "email": pw_contacts.best_email or contacts_data["email"],
+                    "phone": pw_contacts.best_phone or contacts_data["phone"],
+                    "facebook": pw_contacts.facebook or contacts_data["facebook"],
+                    "instagram": pw_contacts.instagram or contacts_data["instagram"],
+                    "twitter": pw_contacts.twitter or contacts_data["twitter"],
+                    "linkedin": pw_contacts.linkedin or contacts_data["linkedin"],
+                    "emails_found": max(len(pw_contacts.emails), contacts_data["emails_found"]),
+                    "phones_found": max(len(pw_contacts.phones), contacts_data["phones_found"]),
+                    "pages_checked": len(pw_contacts.pages_crawled),
+                    "all_emails": pw_contacts.emails[:10],
+                    "all_phones": pw_contacts.phones[:10],
+                    "message": f"Found {len(pw_contacts.emails)} email(s)" if pw_contacts.emails else contacts_data["message"],
+                    "method": "playwright_fallback",
+                })
+        except Exception as e:
+            logger.warning(f"Playwright fallback failed for {url}: {e}")
+
+    # 3. Search fallback if email is still not found
     if not contacts_data["email"]:
         parsed = urlparse(url)
         domain = parsed.netloc.lstrip("www.")
