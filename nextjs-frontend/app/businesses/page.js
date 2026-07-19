@@ -128,76 +128,92 @@ export default function BusinessesPage() {
   }
 
   async function processFindWebsites() {
-    const CONCURRENCY = 5; // 5 parallel workers
+    const CONCURRENCY = 3; // 3 parallel workers with staggered start
     
-    async function worker() {
-      while (findingIndexRef.current < resultsRef.current.length) {
+    // Create an atomic queue of items that need websites
+    const queue = resultsRef.current
+      .map((biz, idx) => ({ biz, idx }))
+      .filter(item => item.biz && !item.biz.website);
+
+    if (queue.length === 0) {
+      updateFindingState('idle');
+      showToast('All websites already found', 'info');
+      return;
+    }
+
+    let processedCount = 0;
+
+    async function worker(workerId) {
+      // Stagger worker start to avoid instant rate limiting
+      await new Promise(r => setTimeout(r, workerId * 300));
+
+      while (queue.length > 0) {
         if (findingStateRef.current !== 'running') break;
 
-        const idx = findingIndexRef.current;
-        findingIndexRef.current++;
-        setFindingProcessedCount(findingIndexRef.current);
+        const item = queue.shift();
+        if (!item) break;
 
-        const biz = resultsRef.current[idx];
-        if (!biz) continue;
+        const { biz, idx } = item;
 
-        if (!biz.website) {
-          try {
-            const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
-            const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
+        try {
+          const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
+          const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 25000);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-            const res = await fetch('/api/v1/businesses/discover-website-single', {
-              method: 'POST',
-              headers: authHeaders(),
-              body: JSON.stringify({
-                business_name: biz.business_name || biz.name || biz.display_name || '',
-                city: cityVal,
-                country: countryVal
-              }),
-              signal: controller.signal
-            });
-            clearTimeout(timeoutId);
+          const res = await fetch('/api/v1/businesses/discover-website-single', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+              business_name: biz.business_name || biz.name || biz.display_name || '',
+              city: cityVal,
+              country: countryVal
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
 
-            if (res.ok) {
-              const data = await res.json();
-              if (data.website) {
-                findingFoundRef.current++;
-                setFindingFoundCount(findingFoundRef.current);
-              }
-              setResults(prev => {
-                const updated = [...prev];
-                const b = updated[idx];
-                if (!b) return prev;
-                updated[idx] = { 
-                  ...b, 
-                  website: data.website || b.website, 
-                  facebook: data.facebook || b.facebook, 
-                  instagram: data.instagram || b.instagram, 
-                  crawled_email: data.email || b.crawled_email, 
-                  phone: data.phone || b.phone,
-                  source_website: (!b.website && data.website) ? 'directory' : b.source_website,
-                  source_facebook: (!b.facebook && data.facebook) ? 'directory' : b.source_facebook,
-                  source_instagram: (!b.instagram && data.instagram) ? 'directory' : b.source_instagram,
-                  source_email: (!b.crawled_email && data.email) ? 'directory' : b.source_email,
-                  source_phone: (!b.phone && data.phone) ? 'directory' : b.source_phone,
-                };
-                return updated;
-              });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.website) {
+              findingFoundRef.current++;
+              setFindingFoundCount(findingFoundRef.current);
             }
-          } catch (e) {
-            console.error(e);
+            setResults(prev => {
+              const updated = [...prev];
+              const b = updated[idx];
+              if (!b) return prev;
+              updated[idx] = { 
+                ...b, 
+                website: data.website || b.website, 
+                facebook: data.facebook || b.facebook, 
+                instagram: data.instagram || b.instagram, 
+                crawled_email: data.email || b.crawled_email, 
+                phone: data.phone || b.phone,
+                source_website: (!b.website && data.website) ? 'directory' : b.source_website,
+                source_facebook: (!b.facebook && data.facebook) ? 'directory' : b.source_facebook,
+                source_instagram: (!b.instagram && data.instagram) ? 'directory' : b.source_instagram,
+                source_email: (!b.crawled_email && data.email) ? 'directory' : b.source_email,
+                source_phone: (!b.phone && data.phone) ? 'directory' : b.source_phone,
+              };
+              return updated;
+            });
           }
+        } catch (e) {
+          console.error(e);
         }
+
+        processedCount++;
+        setFindingProcessedCount(processedCount);
+        await new Promise(r => setTimeout(r, 300));
       }
     }
 
-    const workers = Array.from({ length: CONCURRENCY }, () => worker());
+    const workers = Array.from({ length: CONCURRENCY }, (_, i) => worker(i));
     await Promise.all(workers);
 
-    if (findingStateRef.current === 'running' && findingIndexRef.current >= resultsRef.current.length) {
+    if (findingStateRef.current === 'running') {
       updateFindingState('idle');
       showToast('Finished finding websites', 'success');
     }
@@ -220,115 +236,128 @@ export default function BusinessesPage() {
   }
 
   async function processCrawlWebsites() {
-    const CONCURRENCY = 4; // 4 parallel workers
+    const CONCURRENCY = 3; // 3 parallel workers with staggered start
+    const queue = resultsRef.current
+      .map((biz, idx) => ({ biz, idx }))
+      .filter(item => item.biz && (!item.biz.crawled_email || !item.biz.website || !item.biz.facebook || !item.biz.instagram || !item.biz.phone));
 
-    async function worker() {
-      while (crawlingIndexRef.current < resultsRef.current.length) {
+    if (queue.length === 0) {
+      updateCrawlingState('idle');
+      showToast('All websites already crawled', 'info');
+      return;
+    }
+
+    let processedCount = 0;
+
+    async function worker(workerId) {
+      await new Promise(r => setTimeout(r, workerId * 300));
+
+      while (queue.length > 0) {
         if (crawlingStateRef.current !== 'running') break;
 
-        const idx = crawlingIndexRef.current;
-        crawlingIndexRef.current++;
-        setCrawlingProcessedCount(crawlingIndexRef.current);
+        const item = queue.shift();
+        if (!item) break;
 
-        const biz = resultsRef.current[idx];
-        if (!biz) continue;
+        const { biz, idx } = item;
 
-        if (!biz.crawled_email || !biz.website || !biz.facebook || !biz.instagram || !biz.phone) {
-          try {
-            let currentUrl = biz.website;
+        try {
+          let currentUrl = biz.website;
 
-            // If website is missing, discover it first
-            if (!currentUrl) {
-              const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
-              const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
+          // If website is missing, discover it first
+          if (!currentUrl) {
+            const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
+            const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
 
-              const controllerDisc = new AbortController();
-              const timeoutDisc = setTimeout(() => controllerDisc.abort(), 20000);
+            const controllerDisc = new AbortController();
+            const timeoutDisc = setTimeout(() => controllerDisc.abort(), 20000);
 
-              const discRes = await fetch('/api/v1/businesses/discover-website-single', {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify({
-                  business_name: biz.business_name || biz.name || biz.display_name || '',
-                  city: cityVal,
-                  country: countryVal
-                }),
-                signal: controllerDisc.signal
-              });
-              clearTimeout(timeoutDisc);
+            const discRes = await fetch('/api/v1/businesses/discover-website-single', {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({
+                business_name: biz.business_name || biz.name || biz.display_name || '',
+                city: cityVal,
+                country: countryVal
+              }),
+              signal: controllerDisc.signal
+            });
+            clearTimeout(timeoutDisc);
 
-              if (discRes.ok) {
-                const discData = await discRes.json();
-                if (discData.website) {
-                  currentUrl = discData.website;
-                  setResults(prev => {
-                    const updated = [...prev];
-                    if (updated[idx]) {
-                      updated[idx] = {
-                        ...updated[idx],
-                        website: discData.website,
-                        source_website: 'directory',
-                        crawled_email: discData.email || updated[idx].crawled_email,
-                        phone: discData.phone || updated[idx].phone,
-                        facebook: discData.facebook || updated[idx].facebook,
-                        instagram: discData.instagram || updated[idx].instagram,
-                      };
-                    }
-                    return updated;
-                  });
-                }
-              }
-            }
-
-            if (currentUrl) {
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-              const res = await fetch('/api/v1/businesses/crawl-url', {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify({ url: currentUrl, use_playwright: false }),
-                signal: controller.signal
-              });
-
-              clearTimeout(timeoutId);
-
-              if (res.ok) {
-                const data = await res.json();
-                if (data.email || data.phone || data.facebook || data.instagram) {
-                  crawlingFoundRef.current++;
-                  setCrawlingFoundCount(crawlingFoundRef.current);
-                }
+            if (discRes.ok) {
+              const discData = await discRes.json();
+              if (discData.website) {
+                currentUrl = discData.website;
                 setResults(prev => {
                   const updated = [...prev];
-                  const b = updated[idx];
-                  if (!b) return prev;
-                  updated[idx] = { 
-                    ...b, 
-                    crawled_email: data.email || b.crawled_email, 
-                    facebook: data.facebook || b.facebook, 
-                    instagram: data.instagram || b.instagram, 
-                    phone: data.phone || b.phone,
-                    source_facebook: (!b.facebook && data.facebook) ? 'website' : b.source_facebook,
-                    source_instagram: (!b.instagram && data.instagram) ? 'website' : b.source_instagram,
-                    source_email: (!b.crawled_email && data.email) ? 'website' : b.source_email,
-                    source_phone: (!b.phone && data.phone) ? 'website' : b.source_phone,
-                  };
+                  if (updated[idx]) {
+                    updated[idx] = {
+                      ...updated[idx],
+                      website: discData.website,
+                      source_website: 'directory',
+                      crawled_email: discData.email || updated[idx].crawled_email,
+                      phone: discData.phone || updated[idx].phone,
+                      facebook: discData.facebook || updated[idx].facebook,
+                      instagram: discData.instagram || updated[idx].instagram,
+                    };
+                  }
                   return updated;
                 });
               }
             }
-          } catch (e) {
-            console.error(e);
           }
+
+          if (currentUrl) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+            const res = await fetch('/api/v1/businesses/crawl-url', {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({ url: currentUrl, use_playwright: false }),
+              signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data.email || data.phone || data.facebook || data.instagram) {
+                crawlingFoundRef.current++;
+                setCrawlingFoundCount(crawlingFoundRef.current);
+              }
+              setResults(prev => {
+                const updated = [...prev];
+                const b = updated[idx];
+                if (!b) return prev;
+                updated[idx] = { 
+                  ...b, 
+                  crawled_email: data.email || b.crawled_email, 
+                  facebook: data.facebook || b.facebook, 
+                  instagram: data.instagram || b.instagram, 
+                  phone: data.phone || b.phone,
+                  source_facebook: (!b.facebook && data.facebook) ? 'website' : b.source_facebook,
+                  source_instagram: (!b.instagram && data.instagram) ? 'website' : b.source_instagram,
+                  source_email: (!b.crawled_email && data.email) ? 'website' : b.source_email,
+                  source_phone: (!b.phone && data.phone) ? 'website' : b.source_phone,
+                };
+                return updated;
+              });
+            }
+          }
+        } catch (e) {
+          console.error(e);
         }
+
+        processedCount++;
+        setCrawlingProcessedCount(processedCount);
+        await new Promise(r => setTimeout(r, 300));
       }
     }
 
-    const workers = Array.from({ length: CONCURRENCY }, () => worker());
+    const workers = Array.from({ length: CONCURRENCY }, (_, i) => worker(i));
     await Promise.all(workers);
 
-    if (crawlingStateRef.current === 'running' && crawlingIndexRef.current >= resultsRef.current.length) {
+    if (crawlingStateRef.current === 'running') {
       updateCrawlingState('idle');
       showToast('Finished crawling websites', 'success');
     }
