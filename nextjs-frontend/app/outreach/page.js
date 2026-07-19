@@ -208,17 +208,11 @@ export default function OutreachPage() {
   async function sendEmail() {
     if (!toEmail || !selectedSubject) { showToast('Fill recipient and subject', 'warning'); return; }
     
-    if (emailAccounts.length === 0) {
-      setShowConnectModal(true);
-      return;
-    }
-
     setSending(true);
     try {
       const payload = {
         to_email: toEmail, subject: selectedSubject,
-        body: emailBody.replace(/<[^>]*>?/gm, ''), html_body: emailBody,
-        ...(selectedAccountId ? { account_id: selectedAccountId } : {})
+        body: emailBody.replace(/<[^>]*>?/gm, ''), html_body: emailBody
       };
       const res = await fetch('/api/v1/outreach/send', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
