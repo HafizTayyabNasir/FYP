@@ -141,55 +141,56 @@ export default function BusinessesPage() {
         const biz = resultsRef.current[idx];
         if (!biz) continue;
 
-        if (!biz.website) {
-          try {
-            const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
-            const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
+        // If business already has a website, count it as found
+        if (biz.website) {
+          findingFoundRef.current++;
+          setFindingFoundCount(findingFoundRef.current);
+          continue;
+        }
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 25000);
+        try {
+          const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
+          const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
 
-            const res = await fetch('/api/v1/businesses/discover-website-single', {
-              method: 'POST',
-              headers: authHeaders(),
-              body: JSON.stringify({
-                business_name: biz.business_name || biz.name || biz.display_name || '',
-                city: cityVal,
-                country: countryVal
-              }),
-              signal: controller.signal
-            });
-            clearTimeout(timeoutId);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-            if (res.ok) {
-              const data = await res.json();
-              if (data.website) {
-                findingFoundRef.current++;
-                setFindingFoundCount(findingFoundRef.current);
-              }
-              setResults(prev => {
-                const updated = [...prev];
-                const b = updated[idx];
-                if (!b) return prev;
-                updated[idx] = { 
-                  ...b, 
-                  website: data.website || b.website, 
-                  facebook: data.facebook || b.facebook, 
-                  instagram: data.instagram || b.instagram, 
-                  crawled_email: data.email || b.crawled_email, 
-                  phone: data.phone || b.phone,
-                  source_website: (!b.website && data.website) ? 'directory' : b.source_website,
-                  source_facebook: (!b.facebook && data.facebook) ? 'directory' : b.source_facebook,
-                  source_instagram: (!b.instagram && data.instagram) ? 'directory' : b.source_instagram,
-                  source_email: (!b.crawled_email && data.email) ? 'directory' : b.source_email,
-                  source_phone: (!b.phone && data.phone) ? 'directory' : b.source_phone,
-                };
-                return updated;
-              });
+          const res = await fetch('/api/v1/businesses/discover-website-single', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+              business_name: biz.business_name || biz.name || biz.display_name || '',
+              city: cityVal,
+              country: countryVal
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.website) {
+              findingFoundRef.current++;
+              setFindingFoundCount(findingFoundRef.current);
             }
-          } catch (e) {
-            console.error(e);
+            const updatedBiz = { 
+              ...biz, 
+              website: data.website || biz.website, 
+              facebook: data.facebook || biz.facebook, 
+              instagram: data.instagram || biz.instagram, 
+              crawled_email: data.email || biz.crawled_email, 
+              phone: data.phone || biz.phone,
+              source_website: (!biz.website && data.website) ? 'directory' : biz.source_website,
+              source_facebook: (!biz.facebook && data.facebook) ? 'directory' : biz.source_facebook,
+              source_instagram: (!biz.instagram && data.instagram) ? 'directory' : biz.source_instagram,
+              source_email: (!biz.crawled_email && data.email) ? 'directory' : biz.source_email,
+              source_phone: (!biz.phone && data.phone) ? 'directory' : biz.source_phone,
+            };
+            resultsRef.current[idx] = updatedBiz;
+            setResults([...resultsRef.current]);
           }
+        } catch (e) {
+          console.error(e);
         }
       }
     }
@@ -233,94 +234,92 @@ export default function BusinessesPage() {
         const biz = resultsRef.current[idx];
         if (!biz) continue;
 
-        if (!biz.crawled_email || !biz.website || !biz.facebook || !biz.instagram || !biz.phone) {
+        let currentUrl = biz.website;
+
+        // If website is missing, discover it first
+        if (!currentUrl) {
           try {
-            let currentUrl = biz.website;
+            const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
+            const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
 
-            // If website is missing, discover it first
-            if (!currentUrl) {
-              const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
-              const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
+            const controllerDisc = new AbortController();
+            const timeoutDisc = setTimeout(() => controllerDisc.abort(), 20000);
 
-              const controllerDisc = new AbortController();
-              const timeoutDisc = setTimeout(() => controllerDisc.abort(), 20000);
+            const discRes = await fetch('/api/v1/businesses/discover-website-single', {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({
+                business_name: biz.business_name || biz.name || biz.display_name || '',
+                city: cityVal,
+                country: countryVal
+              }),
+              signal: controllerDisc.signal
+            });
+            clearTimeout(timeoutDisc);
 
-              const discRes = await fetch('/api/v1/businesses/discover-website-single', {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify({
-                  business_name: biz.business_name || biz.name || biz.display_name || '',
-                  city: cityVal,
-                  country: countryVal
-                }),
-                signal: controllerDisc.signal
-              });
-              clearTimeout(timeoutDisc);
-
-              if (discRes.ok) {
-                const discData = await discRes.json();
-                if (discData.website) {
-                  currentUrl = discData.website;
-                  setResults(prev => {
-                    const updated = [...prev];
-                    if (updated[idx]) {
-                      updated[idx] = {
-                        ...updated[idx],
-                        website: discData.website,
-                        source_website: 'directory',
-                        crawled_email: discData.email || updated[idx].crawled_email,
-                        phone: discData.phone || updated[idx].phone,
-                        facebook: discData.facebook || updated[idx].facebook,
-                        instagram: discData.instagram || updated[idx].instagram,
-                      };
-                    }
-                    return updated;
-                  });
-                }
-              }
-            }
-
-            if (currentUrl) {
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-              const res = await fetch('/api/v1/businesses/crawl-url', {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify({ url: currentUrl, use_playwright: false }),
-                signal: controller.signal
-              });
-
-              clearTimeout(timeoutId);
-
-              if (res.ok) {
-                const data = await res.json();
-                if (data.email || data.phone || data.facebook || data.instagram) {
-                  crawlingFoundRef.current++;
-                  setCrawlingFoundCount(crawlingFoundRef.current);
-                }
-                setResults(prev => {
-                  const updated = [...prev];
-                  const b = updated[idx];
-                  if (!b) return prev;
-                  updated[idx] = { 
-                    ...b, 
-                    crawled_email: data.email || b.crawled_email, 
-                    facebook: data.facebook || b.facebook, 
-                    instagram: data.instagram || b.instagram, 
-                    phone: data.phone || b.phone,
-                    source_facebook: (!b.facebook && data.facebook) ? 'website' : b.source_facebook,
-                    source_instagram: (!b.instagram && data.instagram) ? 'website' : b.source_instagram,
-                    source_email: (!b.crawled_email && data.email) ? 'website' : b.source_email,
-                    source_phone: (!b.phone && data.phone) ? 'website' : b.source_phone,
-                  };
-                  return updated;
-                });
+            if (discRes.ok) {
+              const discData = await discRes.json();
+              if (discData.website) {
+                currentUrl = discData.website;
+                const updatedBiz = {
+                  ...biz,
+                  website: discData.website,
+                  source_website: 'directory',
+                  crawled_email: discData.email || biz.crawled_email,
+                  phone: discData.phone || biz.phone,
+                  facebook: discData.facebook || biz.facebook,
+                  instagram: discData.instagram || biz.instagram,
+                };
+                resultsRef.current[idx] = updatedBiz;
+                setResults([...resultsRef.current]);
               }
             }
           } catch (e) {
             console.error(e);
           }
+        }
+
+        if (currentUrl) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+            const res = await fetch('/api/v1/businesses/crawl-url', {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({ url: currentUrl, use_playwright: false }),
+              signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+              const data = await res.json();
+              const latestBiz = resultsRef.current[idx] || biz;
+              if (data.email || data.phone || data.facebook || data.instagram) {
+                crawlingFoundRef.current++;
+                setCrawlingFoundCount(crawlingFoundRef.current);
+              }
+              const updatedBiz = { 
+                ...latestBiz, 
+                crawled_email: data.email || latestBiz.crawled_email, 
+                facebook: data.facebook || latestBiz.facebook, 
+                instagram: data.instagram || latestBiz.instagram, 
+                phone: data.phone || latestBiz.phone,
+                source_facebook: (!latestBiz.facebook && data.facebook) ? 'website' : latestBiz.source_facebook,
+                source_instagram: (!latestBiz.instagram && data.instagram) ? 'website' : latestBiz.source_instagram,
+                source_email: (!latestBiz.crawled_email && data.email) ? 'website' : latestBiz.source_email,
+                source_phone: (!latestBiz.phone && data.phone) ? 'website' : latestBiz.source_phone,
+              };
+              resultsRef.current[idx] = updatedBiz;
+              setResults([...resultsRef.current]);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        } else if (biz.crawled_email || biz.phone) {
+          crawlingFoundRef.current++;
+          setCrawlingFoundCount(crawlingFoundRef.current);
         }
       }
     }
@@ -678,7 +677,7 @@ export default function BusinessesPage() {
           {/* Search Results */}
           {results.length > 0 && (
             <div className="bg-white dark:bg-white/[0.015] rounded-xl p-6 border border-slate-200/80 dark:border-white/[0.06] shadow-sm dark:shadow-none">
-              <div className="flex items-center justify-between mb-4">
+              <div className="sticky top-[72px] z-30 flex items-center justify-between py-3 px-4 mb-4 bg-white/95 dark:bg-[#08061a]/95 backdrop-blur-md rounded-xl border border-slate-200/80 dark:border-white/[0.1] shadow-lg transition-all">
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Results ({total})</h3>
                 <div className="flex space-x-2">
                   <button onClick={toggleFindWebsites}
