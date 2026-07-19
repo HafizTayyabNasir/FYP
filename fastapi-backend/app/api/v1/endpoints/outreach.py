@@ -218,64 +218,29 @@ async def send_outreach_email(
     request: QuickSendRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """Send email via connected account."""
+    """Send outreach email directly via system email sender (team@elvionsolutions.com)."""
     loop = asyncio.get_event_loop()
 
-    # ── NEW: Send via connected email account ──────
-    from sqlalchemy import select as sa_select
-    from app.db.session import AsyncSessionLocal
-    from app.models.email_account import EmailAccount
-    from app.services.email.account_manager import send_via_account
+    from app.services.email.resend_sender import send_email as resend_send
 
-    async with AsyncSessionLocal() as db:
-        if request.account_id:
-            acct_result = await db.execute(
-                sa_select(EmailAccount).where(
-                    EmailAccount.id == uuid.UUID(request.account_id),
-                    EmailAccount.user_id == current_user.id
-                )
-            )
-            account = acct_result.scalars().first()
-        else:
-            # Try to get default account
-            acct_result = await db.execute(
-                sa_select(EmailAccount).where(
-                    EmailAccount.user_id == current_user.id,
-                    EmailAccount.is_default == True
-                )
-            )
-            account = acct_result.scalars().first()
-            if not account:
-                # Get any account if no default
-                acct_result = await db.execute(
-                    sa_select(EmailAccount).where(
-                        EmailAccount.user_id == current_user.id
-                    )
-                )
-                account = acct_result.scalars().first()
-
-        if not account:
-            raise HTTPException(
-                status_code=400, 
-                detail="No email account connected. Please connect an email account to send outreach."
-            )
-            
-        if account.connection_status != "connected":
-            raise HTTPException(status_code=400, detail="Email account is not connected")
-
-        result = await send_via_account(
-            account=account,
+    result = await loop.run_in_executor(
+        executor,
+        lambda: resend_send(
             to_email=request.to_email,
             subject=request.subject,
             body=request.body,
             html_body=request.html_body,
-            db_session=db,
+            from_name=settings.RESEND_FROM_NAME or "Elvion Solutions",
+            from_email=settings.RESEND_FROM_EMAIL or "team@elvionsolutions.com",
+            to_name=request.to_name,
         )
-        if not result.get("success"):
-            raise HTTPException(status_code=500, detail=result.get("error", "Send failed"))
+    )
 
-        from_email = account.email_address
-        from_name = account.display_name or account.email_address
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Send failed"))
+
+    from_email = settings.RESEND_FROM_EMAIL or "team@elvionsolutions.com"
+    from_name = settings.RESEND_FROM_NAME or "Elvion Solutions"
 
     # ── Create / update inbox thread ─────────────────────────────────────
     message_id = result.get("message_id") or str(uuid.uuid4())

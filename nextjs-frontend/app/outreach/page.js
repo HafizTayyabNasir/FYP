@@ -36,28 +36,7 @@ export default function OutreachPage() {
   const [toEmail, setToEmail] = useState('');
   const [emailBody, setEmailBody] = useState('');
 
-  // Connected email accounts
-  const [emailAccounts, setEmailAccounts] = useState([]);
-  const [selectedAccountId, setSelectedAccountId] = useState('');
-  const [showConnectModal, setShowConnectModal] = useState(false);
 
-  // Fetch connected email accounts
-  useEffect(() => {
-    async function loadAccounts() {
-      try {
-        const res = await fetch(`${API}/api/v1/email-accounts/`, {
-          headers: { Authorization: `Bearer ${getToken()}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setEmailAccounts(data.accounts || []);
-          const def = (data.accounts || []).find(a => a.is_default);
-          if (def) setSelectedAccountId(def.id);
-        }
-      } catch (e) { /* no accounts connected */ }
-    }
-    loadAccounts();
-  }, []);
 
   useEffect(() => {
     // Load data from audit page redirect (Write Email button)
@@ -285,24 +264,14 @@ export default function OutreachPage() {
           <div className="bg-white dark:bg-white/[0.015] rounded-xl p-6 border border-slate-200/80 dark:border-white/[0.06]">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Compose Email</h3>
             <div className="space-y-4">
-              {/* Send From (Account Selector) */}
+              {/* Send From (Centralized Sender) */}
               <div>
                 <label className="block text-sm font-semibold text-slate-500 dark:text-[#8E8BA3] mb-1.5">Send From</label>
-                {emailAccounts.length > 0 ? (
-                  <select value={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)} className="w-full px-4 py-2.5 bg-slate-100 dark:bg-[#08061a] border border-slate-200/80 dark:border-white/[0.06] rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5DF6] dark:focus:border-[#A78BFA]">
-                    <option value="">System Default</option>
-                    {emailAccounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.provider === 'google' ? '🔵' : '⚙️'} {acc.email_address} ({acc.provider}){acc.is_default ? ' ★' : ''}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg">
-                    <span className="text-sm text-amber-700 dark:text-amber-400">No email account connected</span>
-                    <a href="/settings/email-accounts" className="text-sm font-medium text-[#6D5DF6] hover:underline">Connect →</a>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-[#08061a] border border-slate-200/80 dark:border-white/[0.06] rounded-lg text-slate-900 dark:text-white font-medium">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  <span>team@elvionsolutions.com</span>
+                  <span className="ml-auto text-xs px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-500 font-bold">Company System Email</span>
+                </div>
               </div>
 
               {/* Recipient with Find Email */}
@@ -352,37 +321,6 @@ export default function OutreachPage() {
           </div>
         </div>
       </div>
-
-      {/* Connect Email Modal */}
-      {showConnectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-[#0B0914] rounded-2xl p-6 max-w-md w-full border border-slate-200 dark:border-white/10 shadow-xl">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-500/20 mb-4">
-                <span className="text-xl">📧</span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Connect Email Account Required</h3>
-              <p className="text-sm text-slate-500 dark:text-[#8E8BA3] mb-6">
-                To send outreach emails, you need to connect your personal or business email account first. This ensures emails are sent directly from your address for better deliverability.
-              </p>
-              <div className="flex gap-3 w-full">
-                <button 
-                  onClick={() => setShowConnectModal(false)}
-                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-white rounded-lg font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                <a 
-                  href="/settings/email-accounts"
-                  className="flex-1 px-4 py-2.5 bg-[#6D5DF6] hover:bg-[#5b4ee4] text-white rounded-lg font-medium transition-colors flex items-center justify-center"
-                >
-                  Connect Email
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

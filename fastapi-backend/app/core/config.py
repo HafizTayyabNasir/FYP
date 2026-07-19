@@ -49,8 +49,8 @@ class Settings(BaseSettings):
     
     # Resend API (email sending)
     RESEND_API_KEY: Optional[str] = Field(default=None)
-    RESEND_FROM_EMAIL: str = Field(default="onboarding@resend.dev")
-    RESEND_FROM_NAME: str = Field(default="AI Client Hunt")
+    RESEND_FROM_EMAIL: str = Field(default="team@elvionsolutions.com")
+    RESEND_FROM_NAME: str = Field(default="Elvion Solutions")
     
     # Gmail API Configuration (preferred over SMTP/IMAP)
     # Run scripts/gmail_auth.py once to get GMAIL_REFRESH_TOKEN

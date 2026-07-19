@@ -203,15 +203,6 @@ export default function PublicShell({ children }) {
                           <p className="text-xs font-medium text-slate-500 dark:text-[#8E8BA3]">Signed in as</p>
                           <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{userName || 'User'}</p>
                         </div>
-                        {userRole === 'admin' && (
-                          <Link
-                            href="/admin"
-                            className="flex items-center rounded-xl px-3 py-2 text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
-                            onClick={() => setDropdownOpen(false)}
-                          >
-                            Admin Portal
-                          </Link>
-                        )}
                         <Link
                           href="/dashboard"
                           className="flex items-center rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 dark:text-[#C8C4E8] hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-colors"
@@ -323,15 +314,6 @@ export default function PublicShell({ children }) {
                 <div className="pt-3 border-t border-slate-200/80 dark:border-white/[0.04] flex flex-col gap-2">
                   {isAuthenticated ? (
                     <>
-                      {userRole === 'admin' && (
-                        <Link
-                          href="/admin"
-                          onClick={() => setMobileMenuOpen(false)}
-                          className="block w-full text-center rounded-xl border border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/10 px-5 py-3 text-sm font-bold text-indigo-600 dark:text-indigo-400 shadow-sm"
-                        >
-                          Admin Portal
-                        </Link>
-                      )}
                       <Link
                         href="/dashboard"
                         onClick={() => setMobileMenuOpen(false)}

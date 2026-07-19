@@ -22,40 +22,10 @@ async def signup(
     user_in: UserCreate,
     db: AsyncSession = Depends(get_db)
 ) -> Any:
-    # Check if user exists
-    result = await db.execute(select(User).where(User.email == user_in.email))
-    user = result.scalars().first()
-    if user:
-        raise HTTPException(
-            status_code=400,
-            detail="The user with this email already exists in the system.",
-        )
-    
-    # Create new user
-    token = security.generate_verification_token()
-    token_expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
-    
-    user = User(
-        email=user_in.email,
-        full_name=user_in.full_name,
-        hashed_password=security.get_password_hash(user_in.password),
-        verification_token=token,
-        token_expires_at=token_expires_at,
-        is_verified=False,
-        is_active=True,
-        role="user",
-        plan="none"
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Tool is currently no launched for the public use",
     )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    
-    # Send verification email
-    # Determine frontend URL
-    frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
-    send_verification_email(user.email, token, frontend_url)
-    
-    return {"message": "User registered successfully. Please check your email to verify."}
 
 @router.post("/login", response_model=AuthResponse)
 async def login(
