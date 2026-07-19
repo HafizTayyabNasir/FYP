@@ -39,12 +39,18 @@ export default function OutreachPage() {
 
 
   useEffect(() => {
-    // Load data from audit page redirect (Write Email button)
+    let targetUrl = '';
+    let extractedEmail = '';
+
+    // Load data from audit page redirect (Write Email / Outreach buttons)
     const auditOutreach = sessionStorage.getItem('auditToOutreach');
     if (auditOutreach) {
       try {
         const { url, audit, business } = JSON.parse(auditOutreach);
-        if (url) setWebsiteUrl(url);
+        if (url) {
+          setWebsiteUrl(url);
+          targetUrl = url;
+        }
         if (audit) {
           setSeoScore(audit.seo?.score || audit.seo_metadata?.score || 0);
           setSslScore(audit.ssl?.score || audit.ssl_certificate?.score || 0);
@@ -59,6 +65,7 @@ export default function OutreachPage() {
           setLocationField(business.location || '');
           setTargetAudience(business.target_customers || '');
           setBusinessGoal(business.business_goal || '');
+          extractedEmail = business.contact_info?.email || business.crawled_email || business.email || '';
         }
         sessionStorage.removeItem('auditToOutreach');
       } catch {}
@@ -70,8 +77,13 @@ export default function OutreachPage() {
       try {
         const biz = JSON.parse(savedBiz);
         setBusinessName(biz.business_name || biz.name || '');
-        setWebsiteUrl(biz.website || '');
-        setToEmail(biz.email || '');
+        if (biz.website) {
+          setWebsiteUrl(biz.website);
+          targetUrl = biz.website;
+        }
+        if (biz.email || biz.crawled_email) {
+          extractedEmail = biz.email || biz.crawled_email;
+        }
         if (biz.overall_score) {
           setSeoScore(biz.seo_score || 0);
           setSslScore(biz.ssl_score || 0);
@@ -89,7 +101,10 @@ export default function OutreachPage() {
     if (auditData) {
       try {
         const audit = JSON.parse(auditData);
-        setWebsiteUrl(audit.url || '');
+        if (audit.url) {
+          setWebsiteUrl(audit.url);
+          targetUrl = audit.url;
+        }
         setSeoScore(audit.seo_metadata?.score || audit.seo?.score || 0);
         setSslScore(audit.ssl_certificate?.score || audit.ssl?.score || 0);
         setSpeedScore(audit.load_speed?.score || 0);
@@ -98,6 +113,25 @@ export default function OutreachPage() {
         setImageScore(audit.image_alt_tags?.score || audit.image_alt?.score || 0);
         sessionStorage.removeItem('auditData');
       } catch {}
+    }
+
+    if (extractedEmail) {
+      setToEmail(extractedEmail);
+    } else if (targetUrl) {
+      // Auto-crawl email for website URL if not already present
+      fetch('/api/v1/businesses/crawl-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ url: targetUrl })
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          const found = data.email || (data.all_emails?.length > 0 ? data.all_emails[0] : null);
+          if (found) setToEmail(found);
+        }
+      })
+      .catch(() => {});
     }
   }, []);
 

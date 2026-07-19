@@ -290,8 +290,13 @@ function AuditsContent() {
   }
 
   function generateEmailFromAudit() {
-    sessionStorage.setItem('auditData', JSON.stringify(auditResult));
-    window.location.href = '/outreach';
+    const data = {
+      url: auditResult?.url || websiteUrl,
+      audit: auditResult,
+      business: businessData,
+    };
+    sessionStorage.setItem('auditToOutreach', JSON.stringify(data));
+    router.push('/outreach');
   }
 
   return (
