@@ -130,16 +130,8 @@ export default function BusinessesPage() {
   async function processFindWebsites() {
     const CONCURRENCY = 3; // 3 parallel workers with staggered start
     
-    // Create an atomic queue of items that need websites
-    const queue = resultsRef.current
-      .map((biz, idx) => ({ biz, idx }))
-      .filter(item => item.biz && !item.biz.website);
-
-    if (queue.length === 0) {
-      updateFindingState('idle');
-      showToast('All websites already found', 'info');
-      return;
-    }
+    // Map ALL rows to queue (100% coverage)
+    const queue = resultsRef.current.map((biz, idx) => ({ biz, idx }));
 
     let processedCount = 0;
 
@@ -154,54 +146,57 @@ export default function BusinessesPage() {
         if (!item) break;
 
         const { biz, idx } = item;
+        const currentBiz = resultsRef.current[idx] || biz;
 
-        try {
-          const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
-          const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
+        if (!currentBiz.website) {
+          try {
+            const cityVal = location.includes(',') ? location.split(',')[0].trim() : location.trim();
+            const countryVal = location.includes(',') ? location.split(',').pop().trim() : '';
 
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 25000);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-          const res = await fetch('/api/v1/businesses/discover-website-single', {
-            method: 'POST',
-            headers: authHeaders(),
-            body: JSON.stringify({
-              business_name: biz.business_name || biz.name || biz.display_name || '',
-              city: cityVal,
-              country: countryVal
-            }),
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-
-          if (res.ok) {
-            const data = await res.json();
-            if (data.website) {
-              findingFoundRef.current++;
-              setFindingFoundCount(findingFoundRef.current);
-            }
-            setResults(prev => {
-              const updated = [...prev];
-              const b = updated[idx];
-              if (!b) return prev;
-              updated[idx] = { 
-                ...b, 
-                website: data.website || b.website, 
-                facebook: data.facebook || b.facebook, 
-                instagram: data.instagram || b.instagram, 
-                crawled_email: data.email || b.crawled_email, 
-                phone: data.phone || b.phone,
-                source_website: (!b.website && data.website) ? 'directory' : b.source_website,
-                source_facebook: (!b.facebook && data.facebook) ? 'directory' : b.source_facebook,
-                source_instagram: (!b.instagram && data.instagram) ? 'directory' : b.source_instagram,
-                source_email: (!b.crawled_email && data.email) ? 'directory' : b.source_email,
-                source_phone: (!b.phone && data.phone) ? 'directory' : b.source_phone,
-              };
-              return updated;
+            const res = await fetch('/api/v1/businesses/discover-website-single', {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({
+                business_name: currentBiz.business_name || currentBiz.name || currentBiz.display_name || '',
+                city: cityVal,
+                country: countryVal
+              }),
+              signal: controller.signal
             });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data.website) {
+                findingFoundRef.current++;
+                setFindingFoundCount(findingFoundRef.current);
+              }
+              setResults(prev => {
+                const updated = [...prev];
+                const b = updated[idx];
+                if (!b) return prev;
+                updated[idx] = { 
+                  ...b, 
+                  website: data.website || b.website, 
+                  facebook: data.facebook || b.facebook, 
+                  instagram: data.instagram || b.instagram, 
+                  crawled_email: data.email || b.crawled_email, 
+                  phone: data.phone || b.phone,
+                  source_website: (!b.website && data.website) ? 'directory' : b.source_website,
+                  source_facebook: (!b.facebook && data.facebook) ? 'directory' : b.source_facebook,
+                  source_instagram: (!b.instagram && data.instagram) ? 'directory' : b.source_instagram,
+                  source_email: (!b.crawled_email && data.email) ? 'directory' : b.source_email,
+                  source_phone: (!b.phone && data.phone) ? 'directory' : b.source_phone,
+                };
+                return updated;
+              });
+            }
+          } catch (e) {
+            console.error(e);
           }
-        } catch (e) {
-          console.error(e);
         }
 
         processedCount++;
@@ -237,15 +232,9 @@ export default function BusinessesPage() {
 
   async function processCrawlWebsites() {
     const CONCURRENCY = 3; // 3 parallel workers with staggered start
-    const queue = resultsRef.current
-      .map((biz, idx) => ({ biz, idx }))
-      .filter(item => item.biz && (!item.biz.crawled_email || !item.biz.website || !item.biz.facebook || !item.biz.instagram || !item.biz.phone));
-
-    if (queue.length === 0) {
-      updateCrawlingState('idle');
-      showToast('All websites already crawled', 'info');
-      return;
-    }
+    
+    // Map ALL rows to queue (100% coverage)
+    const queue = resultsRef.current.map((biz, idx) => ({ biz, idx }));
 
     let processedCount = 0;
 
@@ -261,7 +250,9 @@ export default function BusinessesPage() {
         const { biz, idx } = item;
 
         try {
-          let currentUrl = biz.website;
+          // Read live business data from resultsRef (in case website was found in step 1)
+          const liveBiz = resultsRef.current[idx] || biz;
+          let currentUrl = liveBiz.website;
 
           // If website is missing, discover it first
           if (!currentUrl) {
@@ -275,7 +266,7 @@ export default function BusinessesPage() {
               method: 'POST',
               headers: authHeaders(),
               body: JSON.stringify({
-                business_name: biz.business_name || biz.name || biz.display_name || '',
+                business_name: liveBiz.business_name || liveBiz.name || liveBiz.display_name || '',
                 city: cityVal,
                 country: countryVal
               }),
