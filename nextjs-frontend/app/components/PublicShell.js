@@ -73,7 +73,7 @@ export default function PublicShell({ children }) {
     
     try {
       const token = localStorage.getItem('access_token');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ai-client-hunting-backend.onrender.com';
       const response = await fetch(`${apiUrl}/api/v1/auth/me`, {
         method: 'DELETE',
         headers: {
