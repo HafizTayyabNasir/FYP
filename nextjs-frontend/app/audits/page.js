@@ -92,6 +92,14 @@ function AuditsContent() {
     }
   }, [businessData]);
 
+  function authHeaders() {
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('access_token') || localStorage.getItem('token')) : '';
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+  }
+
   function loadRecentAudits() {
     setRecentAudits(JSON.parse(localStorage.getItem('recentAudits') || '[]'));
   }
@@ -100,7 +108,9 @@ function AuditsContent() {
     setAuditing(true);
     setAuditResult(null);
     try {
-      const res = await fetch(`/api/v1/audits/quick/${encodeURIComponent(url)}`);
+      const res = await fetch(`/api/v1/audits/quick/${encodeURIComponent(url)}`, {
+        headers: authHeaders()
+      });
       if (res.ok) {
         const data = await res.json();
         setAuditResult(data);
@@ -188,7 +198,7 @@ function AuditsContent() {
     setExtractingData(true);
     setBusinessData(null);
     try {
-      const res = await fetch('/api/v1/businesses/extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: auditResult.url }) });
+      const res = await fetch('/api/v1/businesses/extract', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ url: auditResult.url }) });
       if (res.ok) {
         const data = await res.json();
         data.website_url = auditResult.url;
@@ -210,7 +220,7 @@ function AuditsContent() {
     if (!url) { showToast('No URL available', 'warning'); return; }
     setCrawlingEmail(true);
     try {
-      const res = await fetch('/api/v1/businesses/crawl-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+      const res = await fetch('/api/v1/businesses/crawl-url', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ url }) });
       if (res.ok) {
         const data = await res.json();
         const foundEmail = data.email || (data.all_emails?.length > 0 ? data.all_emails[0] : null);
@@ -239,7 +249,7 @@ function AuditsContent() {
         image_alt_score: auditResult?.image_alt?.score || auditResult?.image_alt_tags?.score || 0,
         specific_issues: [], additional_notes: null
       };
-      const res = await fetch('/api/v1/outreach/generate-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const res = await fetch('/api/v1/outreach/generate-email', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
       if (res.ok) {
         const data = await res.json();
         const subject = data.subject_lines?.[0] || 'Website Improvement Opportunity';
@@ -259,7 +269,7 @@ function AuditsContent() {
     try {
       const body = emailForm.body;
       const res = await fetch('/api/v1/mail/send', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ to_email: emailForm.to, subject: emailForm.subject, body: body.replace(/<[^>]*>?/gm, ''), html_body: body })
       });
       if (res.ok) {

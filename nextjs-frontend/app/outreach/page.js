@@ -107,7 +107,7 @@ export default function OutreachPage() {
     try {
       const res = await fetch('/api/v1/businesses/crawl-url', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ url: websiteUrl })
       });
       if (res.ok) {
@@ -143,7 +143,7 @@ export default function OutreachPage() {
       };
 
       const res = await fetch('/api/v1/outreach/generate-email', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` }, body: JSON.stringify(payload)
       });
 
       if (res.ok) {

@@ -14,15 +14,23 @@ export default function DashboardPage() {
   const chartInstance = useRef(null);
   const router = useRouter();
 
+  function authHeaders() {
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('access_token') || localStorage.getItem('token')) : '';
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+  }
+
   const loadStats = useCallback(async () => {
     try {
-      const statsRes = await fetch('/api/v1/businesses/stats/summary');
+      const statsRes = await fetch('/api/v1/businesses/stats/summary', { headers: authHeaders() });
       if (statsRes.ok) {
         const data = await statsRes.json();
         setStats(data);
       }
 
-      const bizRes = await fetch('/api/v1/businesses?per_page=5');
+      const bizRes = await fetch('/api/v1/businesses?per_page=5', { headers: authHeaders() });
       if (bizRes.ok) {
         const data = await bizRes.json();
         setBusinesses(data.businesses || []);
