@@ -43,5 +43,20 @@
     "status": "sent",
     "sent_at": "2026-06-18T22:31:22.767749",
     "created_at": "2026-06-18T22:31:22.768611"
+  },
+  {
+    "id": "d376c891-0cda-54f8-8664-c23faec6cb4f",
+    "thread_id": "87498630-cb85-41e2-b829-6e5ea5ee24ac",
+    "direction": "inbound",
+    "from_email": "hafiztayab1000@gmail.com",
+    "from_name": "Hafiz Tayyab",
+    "to_email": "team@elvionsolutions.com",
+    "to_name": "You",
+    "subject": "Re: Checking in on Bar Bianchi's online presence",
+    "body": "achaaa G\r\n\r\nOn Fri, Jun 19, 2026 at 3:31\u202fAM Elvion Solutions <team@elvionsolutions.com>\r\nwrote:\r\n\r\n> Hi Bar Bianchi team, came across your site and noticed it looks great on\r\n> my phone. However, I did see that your images aren't showing up in Google\r\n> image searches, which might be missing you some free visibility.\r\n> Open to a quick chat about how to make the most of your online presence\r\n> and reach more customers in the Tompkins Square Park area?\r\n> Best,\r\n> Elvion Solutions Team\r\n>",
+    "reply_to_id": null,
+    "status": "received",
+    "created_at": "2026-06-19T03:32:06+05:00",
+    "read": false
   }
 ]

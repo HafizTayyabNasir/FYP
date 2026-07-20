@@ -107,65 +107,138 @@ async def sync_inbox(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_active_user)
 ):
-    """Pull latest emails from connected EmailAccounts (Gmail API) and store locally."""
-    # Find Google Email Accounts for the user
-    result = await db.execute(select(EmailAccount).where(EmailAccount.user_id == current_user.id, EmailAccount.provider == "google", EmailAccount.is_active == True))
+    """Pull latest emails from connected EmailAccounts (Gmail API or IMAP) and store locally."""
+    # Fetch all active email accounts for the user
+    result = await db.execute(
+        select(EmailAccount).where(EmailAccount.user_id == current_user.id, EmailAccount.is_active == True)
+    )
     accounts = result.scalars().all()
     
-    if accounts:
-        import asyncio
-        import concurrent.futures
-        from app.services.email.gmail_client import sync_inbox as _sync
+    import asyncio
+    import concurrent.futures
+    loop = asyncio.get_event_loop()
+    results = []
 
-        loop = asyncio.get_event_loop()
-        results = []
-        for account in accounts:
+    # Get emails from before sync to compare and find new ones
+    INBOX_FILE = DATA_DIR / "inbox_emails.json"
+    before_sync = _load(INBOX_FILE)
+    before_ids = {e["id"] for e in before_sync}
+
+    for account in accounts:
+        if account.provider == "google":
+            from app.services.email.gmail_client import sync_inbox as _sync_gmail
             client_id = settings.GOOGLE_CLIENT_ID or settings.GMAIL_CLIENT_ID
             client_secret = settings.GOOGLE_CLIENT_SECRET or settings.GMAIL_CLIENT_SECRET
             refresh_token = decrypt(account.refresh_token)
             
             with concurrent.futures.ThreadPoolExecutor() as ex:
-                res = await loop.run_in_executor(
-                    ex, lambda: _sync(client_id, client_secret, refresh_token)
-                )
-                results.append(res)
-        
-        if results:
-            return {"success": True, "details": results, "note": f"Synced {len(results)} accounts"}
-    
-    # Fallback to IMAP logic for backwards compatibility, if provided in request
-    imap_host = req.imap_host if req and req.imap_host else settings.IMAP_HOST
-    imap_port = req.imap_port if req and req.imap_port else settings.IMAP_PORT
-    imap_user = req.imap_user if req and req.imap_user else settings.SMTP_USER
-    imap_password = req.imap_password if req and req.imap_password else settings.SMTP_PASSWORD
-
-    if imap_user and imap_password and imap_host:
-        try:
-            from app.services.email.imap_client import sync_inbox as _sync
-            import asyncio
-            import concurrent.futures
-
-            loop = asyncio.get_event_loop()
-            with concurrent.futures.ThreadPoolExecutor() as ex:
-                result = await loop.run_in_executor(
-                    ex, lambda: _sync(
-                        host=imap_host,
-                        port=imap_port,
-                        user=imap_user,
-                        password=imap_password,
+                try:
+                    res = await loop.run_in_executor(
+                        ex, lambda: _sync_gmail(client_id, client_secret, refresh_token)
                     )
-                )
-            return {"success": True, **result}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"IMAP Sync failed: {e}")
+                    results.append(res)
+                except Exception as e:
+                    pass
 
-    if _resend_configured():
+        elif account.provider == "smtp":
+            from app.services.email.imap_client import sync_inbox as _sync_imap
+            imap_host = account.imap_host
+            imap_port = account.imap_port or 993
+            imap_user = account.email_address
+            imap_password = decrypt(account.smtp_password)
+            
+            if imap_host and imap_user and imap_password:
+                with concurrent.futures.ThreadPoolExecutor() as ex:
+                    try:
+                        res = await loop.run_in_executor(
+                            ex, lambda: _sync_imap(
+                                host=imap_host,
+                                port=imap_port,
+                                user=imap_user,
+                                password=imap_password,
+                            )
+                        )
+                        results.append(res)
+                    except Exception as e:
+                        pass
+
+    # Fallback to .env / req for backwards compatibility if no db accounts synced
+    if not results:
+        imap_host = req.imap_host if req and req.imap_host else settings.IMAP_HOST
+        imap_port = req.imap_port if req and req.imap_port else settings.IMAP_PORT
+        imap_user = req.imap_user if req and req.imap_user else settings.SMTP_USER
+        imap_password = req.imap_password if req and req.imap_password else settings.SMTP_PASSWORD
+
+        if imap_user and imap_password and imap_host:
+            try:
+                from app.services.email.imap_client import sync_inbox as _sync_imap
+                with concurrent.futures.ThreadPoolExecutor() as ex:
+                    res = await loop.run_in_executor(
+                        ex, lambda: _sync_imap(
+                            host=imap_host,
+                            port=imap_port,
+                            user=imap_user,
+                            password=imap_password,
+                        )
+                    )
+                results.append(res)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"IMAP Sync failed: {e}")
+
+    if not results and _resend_configured():
         return {"success": True, "synced": 0, "note": "Resend is send-only. Sent emails are shown in the Sent folder."}
+    if not results:
+        raise HTTPException(
+            status_code=400,
+            detail="Please connect an Email Account in Settings first."
+        )
 
-    raise HTTPException(
-        status_code=400,
-        detail="Please connect an Email Account in Settings first."
-    )
+    # Cross-reference newly fetched emails with threads
+    after_sync = _load(INBOX_FILE)
+    new_emails = [e for e in after_sync if e["id"] not in before_ids]
+
+    if new_emails:
+        threads = _load(THREADS_FILE)
+        messages = _load(MESSAGES_FILE)
+        now = datetime.utcnow().isoformat()
+        threads_updated = False
+        messages_updated = False
+
+        for email in new_emails:
+            from_email = email.get("from_email")
+            # Find if this email belongs to an existing thread
+            thread = next((t for t in threads if t.get("contact_email") == from_email), None)
+            
+            if thread:
+                # Add to messages
+                messages.append({
+                    "id": email["id"],
+                    "thread_id": thread["id"],
+                    "direction": "inbound",
+                    "from_email": from_email,
+                    "from_name": email.get("from_name", ""),
+                    "to_email": email.get("to_email", ""),
+                    "to_name": "You",
+                    "subject": email.get("subject", ""),
+                    "body": email.get("body", ""),
+                    "reply_to_id": None,
+                    "status": "received",
+                    "created_at": email.get("date", now),
+                    "read": False,
+                })
+                # Update thread
+                thread["last_message_at"] = email.get("date", now)
+                thread["message_count"] = thread.get("message_count", 0) + 1
+                thread["updated_at"] = now
+                threads_updated = True
+                messages_updated = True
+
+        if threads_updated:
+            _save(THREADS_FILE, threads)
+        if messages_updated:
+            _save(MESSAGES_FILE, messages)
+
+    return {"success": True, "details": results, "note": f"Synced successfully. {len(new_emails)} new emails found."}
 
 
 @router.get("/messages")
@@ -209,20 +282,9 @@ async def get_messages(
         sent.sort(key=lambda x: x["date"], reverse=True)
         return {"messages": sent, "total": len(sent)}
 
-    # Inbox: try Gmail, then IMAP, then show inbound messages from data file
-    inbox = []
-    if has_google:
-        try:
-            from app.services.email.gmail_client import get_stored_inbox
-            inbox = get_stored_inbox()
-        except Exception:
-            inbox = []
-    elif imap_user or _imap_configured():
-        try:
-            from app.services.email.imap_client import get_stored_inbox
-            inbox = get_stored_inbox()
-        except Exception:
-            inbox = []
+    # Inbox: load unconditionally from inbox_emails.json
+    INBOX_FILE = DATA_DIR / "inbox_emails.json"
+    inbox = _load(INBOX_FILE)
 
     # Also include any inbound messages stored in our data file
     all_msgs = _load(MESSAGES_FILE)
