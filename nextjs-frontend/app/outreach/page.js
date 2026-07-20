@@ -42,15 +42,16 @@ export default function OutreachPage() {
     let targetUrl = '';
     let extractedEmail = '';
 
-    // Load data from audit page redirect (Write Email / Outreach buttons)
     const auditOutreach = sessionStorage.getItem('auditToOutreach');
+    const savedBiz = sessionStorage.getItem('selectedBusiness');
+    const auditData = sessionStorage.getItem('auditData');
+    
+    let loadedNew = false;
+
     if (auditOutreach) {
       try {
         const { url, audit, business } = JSON.parse(auditOutreach);
-        if (url) {
-          setWebsiteUrl(url);
-          targetUrl = url;
-        }
+        if (url) { setWebsiteUrl(url); targetUrl = url; }
         if (audit) {
           setSeoScore(audit.seo?.score || audit.seo_metadata?.score || 0);
           setSslScore(audit.ssl?.score || audit.ssl_certificate?.score || 0);
@@ -67,73 +68,101 @@ export default function OutreachPage() {
           setBusinessGoal(business.business_goal || '');
           extractedEmail = business.contact_info?.email || business.crawled_email || business.email || '';
         }
+        loadedNew = true;
         sessionStorage.removeItem('auditToOutreach');
       } catch {}
-    }
-
-    // Legacy: from business list page
-    const savedBiz = sessionStorage.getItem('selectedBusiness');
-    if (savedBiz) {
+    } else if (savedBiz) {
       try {
         const biz = JSON.parse(savedBiz);
         setBusinessName(biz.business_name || biz.name || '');
-        if (biz.website) {
-          setWebsiteUrl(biz.website);
-          targetUrl = biz.website;
-        }
-        if (biz.email || biz.crawled_email) {
-          extractedEmail = biz.email || biz.crawled_email;
-        }
+        if (biz.website) { setWebsiteUrl(biz.website); targetUrl = biz.website; }
+        if (biz.email || biz.crawled_email) extractedEmail = biz.email || biz.crawled_email;
         if (biz.overall_score) {
-          setSeoScore(biz.seo_score || 0);
-          setSslScore(biz.ssl_score || 0);
-          setSpeedScore(biz.speed_score || 0);
-          setResponsiveScore(biz.responsive_score || 0);
-          setSocialScore(biz.social_score || 0);
-          setImageScore(biz.image_score || 0);
+          setSeoScore(biz.seo_score || 0); setSslScore(biz.ssl_score || 0);
+          setSpeedScore(biz.speed_score || 0); setResponsiveScore(biz.responsive_score || 0);
+          setSocialScore(biz.social_score || 0); setImageScore(biz.image_score || 0);
         }
+        loadedNew = true;
         sessionStorage.removeItem('selectedBusiness');
       } catch {}
-    }
-
-    // Legacy: from audit page "Outreach" button
-    const auditData = sessionStorage.getItem('auditData');
-    if (auditData) {
+    } else if (auditData) {
       try {
         const audit = JSON.parse(auditData);
-        if (audit.url) {
-          setWebsiteUrl(audit.url);
-          targetUrl = audit.url;
-        }
+        if (audit.url) { setWebsiteUrl(audit.url); targetUrl = audit.url; }
         setSeoScore(audit.seo_metadata?.score || audit.seo?.score || 0);
         setSslScore(audit.ssl_certificate?.score || audit.ssl?.score || 0);
         setSpeedScore(audit.load_speed?.score || 0);
         setResponsiveScore(audit.responsiveness?.score || 0);
         setSocialScore(audit.social_links?.score || 0);
         setImageScore(audit.image_alt_tags?.score || audit.image_alt?.score || 0);
+        loadedNew = true;
         sessionStorage.removeItem('auditData');
       } catch {}
     }
 
-    if (extractedEmail) {
-      setToEmail(extractedEmail);
-    } else if (targetUrl) {
-      // Auto-crawl email for website URL if not already present
-      fetch('/api/v1/businesses/crawl-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ url: targetUrl })
-      })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data) {
-          const found = data.email || (data.all_emails?.length > 0 ? data.all_emails[0] : null);
-          if (found) setToEmail(found);
+    if (!loadedNew) {
+      // Restore from draft
+      try {
+        const draft = localStorage.getItem('outreachFormDraft');
+        if (draft) {
+          const d = JSON.parse(draft);
+          if (d.businessName) setBusinessName(d.businessName);
+          if (d.websiteUrl) setWebsiteUrl(d.websiteUrl);
+          if (d.industry) setIndustry(d.industry);
+          if (d.locationField) setLocationField(d.locationField);
+          if (d.targetAudience) setTargetAudience(d.targetAudience);
+          if (d.businessGoal) setBusinessGoal(d.businessGoal);
+          if (d.additionalNotes) setAdditionalNotes(d.additionalNotes);
+          if (d.seoScore !== undefined) setSeoScore(d.seoScore);
+          if (d.sslScore !== undefined) setSslScore(d.sslScore);
+          if (d.speedScore !== undefined) setSpeedScore(d.speedScore);
+          if (d.responsiveScore !== undefined) setResponsiveScore(d.responsiveScore);
+          if (d.socialScore !== undefined) setSocialScore(d.socialScore);
+          if (d.imageScore !== undefined) setImageScore(d.imageScore);
+          if (d.toEmail) setToEmail(d.toEmail);
+          if (d.emailBody) {
+             setEmailBody(d.emailBody);
+             setTimeout(() => {
+                const editorEl = document.querySelector('[contenteditable]');
+                if (editorEl && editorEl._setContent) editorEl._setContent(d.emailBody);
+                else if (editorEl) editorEl.innerHTML = d.emailBody;
+             }, 300);
+          }
+          if (d.selectedSubject) setSelectedSubject(d.selectedSubject);
+          if (d.subjectLines) setSubjectLines(d.subjectLines);
         }
-      })
-      .catch(() => {});
+      } catch {}
+    } else {
+      if (extractedEmail) {
+        setToEmail(extractedEmail);
+      } else if (targetUrl) {
+        fetch('/api/v1/businesses/crawl-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({ url: targetUrl })
+        })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            const found = data.email || (data.all_emails?.length > 0 ? data.all_emails[0] : null);
+            if (found) setToEmail(found);
+          }
+        })
+        .catch(() => {});
+      }
     }
   }, []);
+
+  // Auto-save form draft to localStorage
+  useEffect(() => {
+    if (!businessName && !websiteUrl && !emailBody) return;
+    const currentState = {
+      businessName, websiteUrl, industry, locationField, targetAudience, businessGoal, additionalNotes,
+      seoScore, sslScore, speedScore, responsiveScore, socialScore, imageScore,
+      toEmail, emailBody, selectedSubject, subjectLines
+    };
+    localStorage.setItem('outreachFormDraft', JSON.stringify(currentState));
+  }, [businessName, websiteUrl, industry, locationField, targetAudience, businessGoal, additionalNotes, seoScore, sslScore, speedScore, responsiveScore, socialScore, imageScore, toEmail, emailBody, selectedSubject, subjectLines]);
 
   async function crawlForEmail() {
     if (!websiteUrl.trim()) { showToast('Enter a website URL first', 'warning'); return; }
