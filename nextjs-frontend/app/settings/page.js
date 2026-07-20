@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState({ name: '', email: '', phone: '', title: '' });
   const [company, setCompany] = useState({ name: '', website: '', services: '', usp: '', signature: '' });
   const [templates, setTemplates] = useState([]);
+  const [imap, setImap] = useState({ host: '', port: '993', username: '', password: '' });
 
   useEffect(() => {
     const keys = JSON.parse(localStorage.getItem('settings_apiKeys') || JSON.stringify(apiKeys));
@@ -20,12 +21,14 @@ export default function SettingsPage() {
     setProfile(JSON.parse(localStorage.getItem('settings_profile') || JSON.stringify(profile)));
     setCompany(JSON.parse(localStorage.getItem('settings_company') || JSON.stringify(company)));
     setTemplates(JSON.parse(localStorage.getItem('settings_templates') || '[]'));
+    setImap(JSON.parse(localStorage.getItem('settings_imap') || JSON.stringify({ host: '', port: '993', username: '', password: '' })));
   }, []);
 
   const saveApiKeys = () => { localStorage.setItem('settings_apiKeys', JSON.stringify(apiKeys)); setApiStatus({ groq: !!apiKeys.groq, grok: !!apiKeys.grok }); showToast('API Keys saved!', 'success'); };
   const saveProfile = () => { localStorage.setItem('settings_profile', JSON.stringify(profile)); showToast('Profile saved!', 'success'); };
   const saveCompany = () => { localStorage.setItem('settings_company', JSON.stringify(company)); showToast('Company saved!', 'success'); };
   const saveTemplates = () => { localStorage.setItem('settings_templates', JSON.stringify(templates)); showToast('Templates saved!', 'success'); };
+  const saveImap = () => { localStorage.setItem('settings_imap', JSON.stringify(imap)); showToast('IMAP Settings saved!', 'success'); };
 
   const addTemplate = () => setTemplates([...templates, { id: Date.now(), name: 'New Template', subject: '', body: '' }]);
   const deleteTemplate = (id) => setTemplates(templates.filter(t => t.id !== id));
@@ -35,6 +38,7 @@ export default function SettingsPage() {
     { id: 'profile', label: 'Profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
     { id: 'company', label: 'Company Info', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
     { id: 'templates', label: 'Email Templates', icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z' },
+    { id: 'email', label: 'Email / IMAP Settings', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
   ];
 
   return (
@@ -119,7 +123,7 @@ export default function SettingsPage() {
                 {templates.map((template, index) => (
                   <div key={template.id} className="border border-slate-200/80 dark:border-white/[0.06] rounded-lg p-4 bg-slate-100 dark:bg-[#08061a]">
                     <div className="flex justify-between items-center mb-2">
-                      <input value={template.name} onChange={e => { const nt = [...templates]; nt[index].name = e.target.value; setTemplates(nt); }} className="font-medium bg-transparent border-0 text-lg focus:outline-none" />
+                       <input value={template.name} onChange={e => { const nt = [...templates]; nt[index].name = e.target.value; setTemplates(nt); }} className="font-medium bg-transparent border-0 text-lg focus:outline-none" />
                       <button onClick={() => deleteTemplate(template.id)} className="text-red-500 hover:text-red-400">✕</button>
                     </div>
                     <input value={template.subject} onChange={e => { const nt = [...templates]; nt[index].subject = e.target.value; setTemplates(nt); }} placeholder="Subject" className="w-full px-4 py-2 mb-2 bg-white dark:bg-white/[0.015] border border-slate-200/80 dark:border-white/[0.06] rounded-lg text-slate-900 dark:text-white text-sm" />
@@ -127,6 +131,32 @@ export default function SettingsPage() {
                   </div>
                 ))}
                 {templates.length > 0 && <button onClick={saveTemplates} className="px-4 py-2 bg-[#6D5DF6] dark:bg-[#6D5DF6] text-white rounded-lg text-sm">Save All Templates</button>}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'email' && (
+            <div className="bg-white dark:bg-white/[0.015] rounded-xl p-6 border border-slate-200/80 dark:border-white/[0.06]">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Email / IMAP Settings</h3>
+              <p className="text-sm text-slate-500 dark:text-[#8E8BA3] mb-4">Configure your IMAP settings to retrieve replies in your Inbox.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm mb-1 text-slate-500 dark:text-[#8E8BA3]">IMAP Host (e.g. imap.gmail.com)</label>
+                  <input value={imap.host} onChange={e => setImap({...imap, host: e.target.value})} className="w-full px-4 py-2 bg-slate-100 dark:bg-[#08061a] border border-slate-200/80 dark:border-white/[0.06] rounded-lg text-slate-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1 text-slate-500 dark:text-[#8E8BA3]">IMAP Port</label>
+                  <input value={imap.port} onChange={e => setImap({...imap, port: e.target.value})} className="w-full px-4 py-2 bg-slate-100 dark:bg-[#08061a] border border-slate-200/80 dark:border-white/[0.06] rounded-lg text-slate-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1 text-slate-500 dark:text-[#8E8BA3]">IMAP Username / Email Address</label>
+                  <input value={imap.username} onChange={e => setImap({...imap, username: e.target.value})} className="w-full px-4 py-2 bg-slate-100 dark:bg-[#08061a] border border-slate-200/80 dark:border-white/[0.06] rounded-lg text-slate-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1 text-slate-500 dark:text-[#8E8BA3]">IMAP Password / App Password</label>
+                  <input type="password" value={imap.password} onChange={e => setImap({...imap, password: e.target.value})} className="w-full px-4 py-2 bg-slate-100 dark:bg-[#08061a] border border-slate-200/80 dark:border-white/[0.06] rounded-lg text-slate-900 dark:text-white" />
+                </div>
+                <button onClick={saveImap} className="px-4 py-2 bg-[#6D5DF6] dark:bg-[#6D5DF6] text-white rounded-lg text-sm">Save Email Settings</button>
               </div>
             </div>
           )}

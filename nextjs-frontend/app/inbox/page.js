@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../components/ToastProvider';
 import Spinner from '../components/Spinner';
 
+function getToken() {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('access_token') || '';
+  }
+  return '';
+}
+
 export default function InboxPage() {
   const showToast = useToast();
   const [allEmails, setAllEmails] = useState([]);
@@ -169,7 +176,7 @@ export default function InboxPage() {
   }
 
   async function generateReply() {
-    if (!aiPrompt.trim()) { showToast('Please enter an instruction', 'warning'); return; }
+    const instruction = aiPrompt.trim() || "Draft a professional, friendly response that continues the conversation and naturally leads to securing a meeting or consultation.";
     setGeneratingAI(true);
     try {
       const chatHistory = selectedConversation.messages.map(m => ({
