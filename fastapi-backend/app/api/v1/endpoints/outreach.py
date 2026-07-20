@@ -22,7 +22,11 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from app.api.deps import get_current_user
+from app.api import deps
+from app.db.session import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from app.models.email_account import EmailAccount
 from app.models.user import User
 from app.schemas.outreach import (
     EmailGenerationRequest,
@@ -456,11 +460,22 @@ async def run_full_pipeline(request: PipelineRequest):
 
 
 @router.post("/send-email", response_model=EmailSendResponse)
-async def send_email_legacy(request: EmailSendRequest):
+async def send_email_legacy(
+    request: EmailSendRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_active_user)
+):
     """
     Send an email via configured provider (Resend preferred, SMTP fallback).
     """
     loop = asyncio.get_event_loop()
+    
+    reply_to_email = request.reply_to
+    if not reply_to_email:
+        result_accounts = await db.execute(select(EmailAccount).where(EmailAccount.user_id == current_user.id, EmailAccount.is_active == True))
+        accounts = result_accounts.scalars().all()
+        if accounts:
+            reply_to_email = accounts[0].email_address
 
     if _resend_configured():
         from app.services.email.resend_sender import send_email as resend_send
@@ -472,6 +487,7 @@ async def send_email_legacy(request: EmailSendRequest):
                 body=request.body,
                 html_body=request.html_body,
                 to_name=request.to_name,
+                reply_to=reply_to_email,
             )
         )
         return EmailSendResponse(

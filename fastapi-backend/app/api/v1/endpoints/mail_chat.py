@@ -321,6 +321,14 @@ async def send_message(request: SendRequest):
     result = None
 
     # ── Pick provider: Resend > Gmail > SMTP ────────────────────────────
+    # Find active EmailAccount to use for Reply-To
+    reply_to_email = request.reply_to_id
+    if not reply_to_email:
+        result_accounts = await db.execute(select(EmailAccount).where(EmailAccount.user_id == current_user.id, EmailAccount.is_active == True))
+        accounts = result_accounts.scalars().all()
+        if accounts:
+            reply_to_email = accounts[0].email_address
+
     if _resend_configured():
         from app.services.email.resend_sender import send_email as resend_send
 
@@ -332,6 +340,7 @@ async def send_message(request: SendRequest):
                     body=request.body,
                     html_body=request.html_body,
                     to_name=request.to_name,
+                    reply_to=reply_to_email,
                 )
             )
         if not result["success"]:
@@ -350,6 +359,7 @@ async def send_message(request: SendRequest):
                         subject=request.subject,
                         body=request.body,
                         html_body=request.html_body,
+                        reply_to=reply_to_email,
                     )
                 )
         except Exception as e:
@@ -370,6 +380,7 @@ async def send_message(request: SendRequest):
                     subject=request.subject,
                     body=request.body,
                     html_body=request.html_body,
+                    reply_to=reply_to_email,
                 )
             )
         if not result["success"]:
