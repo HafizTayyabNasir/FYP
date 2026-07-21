@@ -99,6 +99,11 @@ class SyncRequest(BaseModel):
     imap_password: Optional[str] = None
 
 
+class MarkReadRequest(BaseModel):
+    contact_email: Optional[str] = None
+    email_id: Optional[str] = None
+
+
 # ── inbox: sync + messages ────────────────────────────────────────────────────
 
 @router.post("/sync")
@@ -205,15 +210,35 @@ async def sync_inbox(
         messages_updated = False
 
         for email in new_emails:
-            from_email = email.get("from_email")
-            # Find if this email belongs to an existing thread
-            thread = next((t for t in threads if t.get("contact_email") == from_email), None)
+            from_email = (email.get("from_email") or "").strip()
+            if not from_email:
+                continue
+
+            from_email_lower = from_email.lower()
+            # Find if this email belongs to an existing thread (case-insensitive)
+            thread = next((t for t in threads if (t.get("contact_email") or "").lower().strip() == from_email_lower), None)
             
-            if thread:
+            if not thread:
+                thread_id = str(uuid.uuid4())
+                thread = {
+                    "id": thread_id,
+                    "contact_email": from_email,
+                    "contact_name": email.get("from_name") or from_email.split("@")[0],
+                    "subject": email.get("subject", ""),
+                    "status": "active",
+                    "message_count": 0,
+                    "last_message_at": email.get("date", now),
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                threads.append(thread)
+
+            thread_id = thread["id"]
+            if not any(m.get("id") == email["id"] for m in messages):
                 # Add to messages
                 messages.append({
                     "id": email["id"],
-                    "thread_id": thread["id"],
+                    "thread_id": thread_id,
                     "direction": "inbound",
                     "from_email": from_email,
                     "from_name": email.get("from_name", ""),
@@ -312,7 +337,11 @@ async def get_messages(
 # ── send ──────────────────────────────────────────────────────────────────────
 
 @router.post("/send")
-async def send_message(request: SendRequest):
+async def send_message(
+    request: SendRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_active_user)
+):
     """Send an email via Resend (preferred), Gmail API, or SMTP and record it."""
     import asyncio
     import concurrent.futures
@@ -323,11 +352,14 @@ async def send_message(request: SendRequest):
     # ── Pick provider: Resend > Gmail > SMTP ────────────────────────────
     # Find active EmailAccount to use for Reply-To
     reply_to_email = request.reply_to_id
-    if not reply_to_email:
+    if not reply_to_email and db and current_user:
         result_accounts = await db.execute(select(EmailAccount).where(EmailAccount.user_id == current_user.id, EmailAccount.is_active == True))
         accounts = result_accounts.scalars().all()
         if accounts:
             reply_to_email = accounts[0].email_address
+
+    if not reply_to_email:
+        reply_to_email = settings.SMTP_USER or settings.IMAP_USER
 
     if _resend_configured():
         from app.services.email.resend_sender import send_email as resend_send
@@ -478,6 +510,45 @@ async def get_thread(thread_id: str):
     messages = [m for m in _load(MESSAGES_FILE) if m.get("thread_id") == thread_id]
     messages.sort(key=lambda x: x.get("created_at", ""))
     return {**thread, "messages": messages}
+
+
+@router.post("/read")
+async def mark_read_endpoint(req: MarkReadRequest):
+    """Mark an email or all emails from a contact_email as read."""
+    # 1. Mark in inbox_emails.json
+    INBOX_FILE = DATA_DIR / "inbox_emails.json"
+    inbox = _load(INBOX_FILE)
+    updated_inbox = False
+    for msg in inbox:
+        if req.email_id and msg.get("id") == req.email_id:
+            msg["read"] = True
+            updated_inbox = True
+        elif req.contact_email:
+            msg_from = msg.get("from_email") or ""
+            msg_to = msg.get("to_email") or ""
+            if msg_from.lower() == req.contact_email.lower() or msg_to.lower() == req.contact_email.lower():
+                msg["read"] = True
+                updated_inbox = True
+    if updated_inbox:
+        _save(INBOX_FILE, inbox)
+
+    # 2. Mark in email_messages.json
+    messages = _load(MESSAGES_FILE)
+    updated_messages = False
+    for msg in messages:
+        if req.email_id and msg.get("id") == req.email_id:
+            msg["read"] = True
+            updated_messages = True
+        elif req.contact_email:
+            msg_from = msg.get("from_email") or ""
+            msg_to = msg.get("to_email") or ""
+            if msg_from.lower() == req.contact_email.lower() or msg_to.lower() == req.contact_email.lower():
+                msg["read"] = True
+                updated_messages = True
+    if updated_messages:
+        _save(MESSAGES_FILE, messages)
+
+    return {"success": True}
 
 
 @router.put("/threads/{thread_id}/status")

@@ -163,8 +163,31 @@ export default function InboxPage() {
     }
   }
 
-  function selectConversation(conv) {
-    setSelectedConversation(conv);
+  async function selectConversation(conv) {
+    const targetEmail = conv.contactEmail;
+    
+    // Mark in allEmails
+    const updatedEmails = allEmails.map(m => {
+      const isSent = m.folder === 'sent';
+      const cEmail = (isSent ? m.to_email : m.from_email) || '';
+      if (cEmail.toLowerCase().trim() === targetEmail) {
+        return { ...m, read: true };
+      }
+      return m;
+    });
+    setAllEmails(updatedEmails);
+
+    // Update conversation unread count locally
+    const updatedConv = {
+      ...conv,
+      unread: 0,
+      messages: conv.messages.map(m => ({ ...m, read: true }))
+    };
+    setSelectedConversation(updatedConv);
+
+    setConversations(prev => prev.map(c => c.contactEmail === targetEmail ? updatedConv : c));
+    setFilteredConversations(prev => prev.map(c => c.contactEmail === targetEmail ? updatedConv : c));
+
     setReplyText('');
     setAiPrompt('');
     
@@ -173,6 +196,20 @@ export default function InboxPage() {
       const chatBox = document.getElementById('chat-messages');
       if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
     }, 100);
+
+    // Call backend to mark read
+    try {
+      await fetch('/api/v1/mail/read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
+        body: JSON.stringify({ contact_email: targetEmail })
+      });
+    } catch (e) {
+      console.error("Failed to mark conversation as read", e);
+    }
   }
 
   async function generateReply() {

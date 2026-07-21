@@ -220,12 +220,25 @@ async def generate_reply_email(request: GenerateReplyRequest):
 @router.post("/send")
 async def send_outreach_email(
     request: QuickSendRequest,
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
     """Send outreach email directly via system email sender (team@elvionsolutions.com)."""
     loop = asyncio.get_event_loop()
 
     from app.services.email.resend_sender import send_email as resend_send
+
+    reply_to_email = None
+    if db and current_user:
+        result_accounts = await db.execute(
+            select(EmailAccount).where(EmailAccount.user_id == current_user.id, EmailAccount.is_active == True)
+        )
+        accounts = result_accounts.scalars().all()
+        if accounts:
+            reply_to_email = accounts[0].email_address
+
+    if not reply_to_email:
+        reply_to_email = settings.SMTP_USER or settings.IMAP_USER
 
     result = await loop.run_in_executor(
         executor,
@@ -237,6 +250,7 @@ async def send_outreach_email(
             from_name=settings.RESEND_FROM_NAME or "Elvion Solutions",
             from_email=settings.RESEND_FROM_EMAIL or "team@elvionsolutions.com",
             to_name=request.to_name,
+            reply_to=reply_to_email,
         )
     )
 
