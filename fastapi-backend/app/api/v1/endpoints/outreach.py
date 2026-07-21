@@ -22,6 +22,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from app.core.config import settings
 from app.api import deps
 from app.db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession

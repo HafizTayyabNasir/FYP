@@ -272,8 +272,17 @@ export default function OutreachPage() {
         if (editorEl && editorEl._setContent) editorEl._setContent('');
         else if (editorEl) editorEl.innerHTML = '';
       } else {
-        const err = await res.json();
-        showToast(err.detail || 'Send failed', 'error');
+        let errDetail = 'Send failed';
+        try {
+          const err = await res.json();
+          errDetail = typeof err.detail === 'string' ? err.detail : (err.message || errDetail);
+        } catch {
+          try {
+            const rawText = await res.text();
+            if (rawText) errDetail = rawText.slice(0, 100);
+          } catch {}
+        }
+        showToast(errDetail, 'error');
       }
     } catch (e) {
       showToast('Send failed: ' + e.message, 'error');
