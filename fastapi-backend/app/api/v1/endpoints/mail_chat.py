@@ -608,6 +608,54 @@ async def update_thread_status(thread_id: str, status: str):
     raise HTTPException(status_code=404, detail="Thread not found")
 
 
+@router.delete("/conversation")
+async def delete_conversation(contact_email: str = Query(...)):
+    """Delete an entire conversation (all messages from/to a contact email) from all data stores."""
+    contact = contact_email.lower().strip()
+    if not contact:
+        raise HTTPException(status_code=400, detail="contact_email is required")
+
+    # 1. Remove from inbox_emails.json
+    INBOX_FILE = DATA_DIR / "inbox_emails.json"
+    inbox = _load(INBOX_FILE)
+    inbox_filtered = [
+        m for m in inbox
+        if (m.get("from_email") or "").lower().strip() != contact
+        and (m.get("to_email") or "").lower().strip() != contact
+    ]
+    _save(INBOX_FILE, inbox_filtered)
+
+    # 2. Remove matching thread(s) from email_threads.json
+    threads = _load(THREADS_FILE)
+    matching_thread_ids = {
+        t["id"] for t in threads
+        if (t.get("contact_email") or "").lower().strip() == contact
+    }
+    threads_filtered = [t for t in threads if t["id"] not in matching_thread_ids]
+    _save(THREADS_FILE, threads_filtered)
+
+    # 3. Remove matching messages from email_messages.json
+    messages = _load(MESSAGES_FILE)
+    messages_filtered = [
+        m for m in messages
+        if m.get("thread_id") not in matching_thread_ids
+        and (m.get("from_email") or "").lower().strip() != contact
+        and (m.get("to_email") or "").lower().strip() != contact
+    ]
+    _save(MESSAGES_FILE, messages_filtered)
+
+    removed_inbox = len(inbox) - len(inbox_filtered)
+    removed_threads = len(threads) - len(threads_filtered)
+    removed_messages = len(messages) - len(messages_filtered)
+
+    return {
+        "success": True,
+        "removed_inbox": removed_inbox,
+        "removed_threads": removed_threads,
+        "removed_messages": removed_messages,
+    }
+
+
 @router.delete("/threads/{thread_id}")
 async def delete_thread(thread_id: str):
     threads = _load(THREADS_FILE)

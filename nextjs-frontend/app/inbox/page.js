@@ -23,6 +23,7 @@ export default function InboxPage() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingAI, setGeneratingAI] = useState(false);
   const [sendingReply, setSendingReply] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadAllEmails();
@@ -222,6 +223,41 @@ export default function InboxPage() {
     }
   }
 
+  async function deleteConversation(conv) {
+    if (!conv) return;
+    const confirmDelete = window.confirm(`Delete entire conversation with ${conv.contactName || conv.contactEmail}? This cannot be undone.`);
+    if (!confirmDelete) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/v1/mail/conversation?contact_email=${encodeURIComponent(conv.contactEmail)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
+      if (res.ok) {
+        // Remove from local state
+        const targetEmail = conv.contactEmail;
+        setAllEmails(prev => prev.filter(m => {
+          const cEmail = (m.folder === 'sent' ? m.to_email : m.from_email) || '';
+          return cEmail.toLowerCase().trim() !== targetEmail;
+        }));
+        setConversations(prev => prev.filter(c => c.contactEmail !== targetEmail));
+        setFilteredConversations(prev => prev.filter(c => c.contactEmail !== targetEmail));
+        if (selectedConversation?.contactEmail === targetEmail) {
+          setSelectedConversation(null);
+        }
+        showToast('Conversation deleted', 'success');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || 'Failed to delete', 'error');
+      }
+    } catch (e) {
+      showToast('Failed to delete conversation', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function generateReply() {
     const instruction = aiPrompt.trim() || "Draft a professional, friendly response that continues the conversation and naturally leads to securing a meeting or consultation.";
     setGeneratingAI(true);
@@ -357,9 +393,19 @@ export default function InboxPage() {
         <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#060518]">
           {filteredConversations.map(conv => (
             <div key={conv.contactEmail} onClick={() => selectConversation(conv)}
-              className={`p-4 border-b border-slate-200/80 dark:border-white/[0.06] cursor-pointer transition-all duration-200 ${
+              className={`group relative p-4 border-b border-slate-200/80 dark:border-white/[0.06] cursor-pointer transition-all duration-200 ${
                 selectedConversation?.contactEmail === conv.contactEmail ? 'bg-slate-200/50 dark:bg-[#6D5DF6]/10 border-l-4 border-l-[#6D5DF6] dark:border-l-[#A78BFA]' : 'hover:bg-slate-50 dark:bg-white/[0.03]'
               }`}>
+              {/* Delete button (visible on hover) */}
+              <button
+                onClick={(e) => { e.stopPropagation(); deleteConversation(conv); }}
+                className="absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 dark:text-[#8E8BA3] dark:hover:text-red-400 hover:bg-red-500/10 transition-all"
+                title="Delete conversation"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+              </button>
               <div className="flex items-center justify-between mb-1">
                 <p className={`text-sm truncate font-semibold ${conv.unread > 0 ? 'text-slate-900 dark:text-white' : 'text-slate-900 dark:text-white'}`}>{conv.contactName}</p>
                 <span className="text-xs text-slate-500 dark:text-[#8E8BA3] ml-2 shrink-0">{formatDate(conv.lastUpdated)}</span>
@@ -394,6 +440,23 @@ export default function InboxPage() {
                   <p className="text-xs text-slate-500 dark:text-[#8E8BA3]">{selectedConversation.contactEmail}</p>
                 </div>
               </div>
+              <button
+                onClick={() => deleteConversation(selectedConversation)}
+                disabled={deleting}
+                className="p-2 text-slate-400 dark:text-[#8E8BA3] hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all disabled:opacity-50"
+                title="Delete conversation"
+              >
+                {deleting ? (
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                )}
+              </button>
             </div>
             
             {/* Messages */}
