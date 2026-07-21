@@ -239,7 +239,7 @@ async def send_outreach_email(
             reply_to_email = accounts[0].email_address
 
     if not reply_to_email:
-        reply_to_email = settings.SMTP_USER or settings.IMAP_USER
+        reply_to_email = getattr(settings, "SMTP_USER", None) or getattr(settings, "IMAP_USER", None)
 
     result = await loop.run_in_executor(
         executor,

@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     # IMAP Configuration
     IMAP_HOST: str = Field(default="imap.gmail.com")
     IMAP_PORT: int = 993
+    IMAP_USER: Optional[str] = Field(default=None)
 
     # Google OAuth (for per-user email connections)
     GOOGLE_CLIENT_ID: Optional[str] = Field(default=None)

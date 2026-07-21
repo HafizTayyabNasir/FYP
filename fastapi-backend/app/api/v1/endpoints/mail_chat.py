@@ -359,7 +359,7 @@ async def send_message(
             reply_to_email = accounts[0].email_address
 
     if not reply_to_email:
-        reply_to_email = settings.SMTP_USER or settings.IMAP_USER
+        reply_to_email = getattr(settings, "SMTP_USER", None) or getattr(settings, "IMAP_USER", None)
 
     if _resend_configured():
         from app.services.email.resend_sender import send_email as resend_send
