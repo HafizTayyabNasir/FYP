@@ -62,8 +62,18 @@ export default function InboxPage() {
   }
 
   function buildConversations(emails) {
+    // Deduplicate emails by ID
+    const seenIds = new Set();
+    const uniqueEmails = [];
+    for (const msg of emails) {
+      const id = msg.id;
+      if (id && seenIds.has(id)) continue;
+      if (id) seenIds.add(id);
+      uniqueEmails.push(msg);
+    }
+
     const groups = {};
-    emails.forEach(msg => {
+    uniqueEmails.forEach(msg => {
       const isSent = msg.folder === 'sent';
       let contactEmail = isSent ? msg.to_email : msg.from_email;
       if (!contactEmail) contactEmail = isSent ? msg.to_name : msg.from_name;

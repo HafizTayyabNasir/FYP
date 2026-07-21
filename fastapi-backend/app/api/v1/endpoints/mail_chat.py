@@ -340,14 +340,28 @@ async def get_messages(
 
     # Inbox: load unconditionally from inbox_emails.json
     INBOX_FILE = DATA_DIR / "inbox_emails.json"
-    inbox = _load(INBOX_FILE)
+    inbox_raw = _load(INBOX_FILE)
 
-    # Also include any inbound messages stored in our data file
+    # Track seen IDs to prevent duplicates across both data sources
+    seen_ids = set()
+    inbox = []
+
+    for m in inbox_raw:
+        mid = m.get("id")
+        if mid and mid not in seen_ids:
+            seen_ids.add(mid)
+            inbox.append(m)
+
+    # Also include any inbound messages stored in our data file (avoid duplicates)
     all_msgs = _load(MESSAGES_FILE)
     for m in all_msgs:
         if m.get("direction") == "inbound":
+            mid = m.get("id")
+            if mid and mid in seen_ids:
+                continue
+            seen_ids.add(mid)
             inbox.append({
-                "id": m["id"],
+                "id": mid,
                 "from_name": m.get("from_name", ""),
                 "from_email": m.get("from_email", ""),
                 "to_email": m.get("to_email", ""),
