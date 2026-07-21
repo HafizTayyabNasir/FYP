@@ -235,27 +235,51 @@ export default function OutreachPage() {
   }
 
   async function sendEmail() {
-    if (!toEmail || !selectedSubject) { showToast('Fill recipient and subject', 'warning'); return; }
-    
+    const recipient = (toEmail || '').trim();
+    const subject = (selectedSubject || '').trim();
+    const plainBody = emailBody ? emailBody.replace(/<[^>]*>?/gm, '').trim() : '';
+
+    if (!recipient) {
+      showToast('Please enter a recipient email address', 'warning');
+      return;
+    }
+    if (!subject) {
+      showToast('Please enter a subject line', 'warning');
+      return;
+    }
+    if (!plainBody) {
+      showToast('Please enter email body content', 'warning');
+      return;
+    }
+
     setSending(true);
     try {
       const payload = {
-        to_email: toEmail, subject: selectedSubject,
-        body: emailBody.replace(/<[^>]*>?/gm, ''), html_body: emailBody
+        to_email: recipient,
+        subject: subject,
+        body: plainBody,
+        html_body: emailBody
       };
       const res = await fetch('/api/v1/outreach/send', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify(payload)
       });
       if (res.ok) {
         showToast('Email sent successfully!', 'success');
-        setEmailBody(''); setToEmail(''); setSelectedSubject(''); setEmailResult(null);
+        setEmailBody(''); setToEmail(''); setSelectedSubject(''); setSubjectLines([]); setEmailResult(null);
         const editorEl = document.querySelector('[contenteditable]');
         if (editorEl && editorEl._setContent) editorEl._setContent('');
         else if (editorEl) editorEl.innerHTML = '';
-      } else { const err = await res.json(); showToast(err.detail || 'Send failed', 'error'); }
-    } catch (e) { showToast('Send failed', 'error'); }
-    finally { setSending(false); }
+      } else {
+        const err = await res.json();
+        showToast(err.detail || 'Send failed', 'error');
+      }
+    } catch (e) {
+      showToast('Send failed: ' + e.message, 'error');
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -342,20 +366,46 @@ export default function OutreachPage() {
                 </div>
               </div>
 
-              {/* Subject Lines */}
-              {subjectLines.length > 0 ? (
-                <div>
-                  <label className="block text-sm font-semibold text-slate-500 dark:text-[#8E8BA3] mb-1.5">Subject Line</label>
-                  <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="w-full px-4 py-2.5 bg-slate-100 dark:bg-[#08061a] border border-slate-200/80 dark:border-white/[0.06] rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-[#6D5DF6] dark:focus:border-[#A78BFA]">
-                    {subjectLines.map((s, i) => <option key={i} value={s}>{s}</option>)}
-                  </select>
+              {/* Subject Line (Freely Editable Input + AI Suggestions) */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-semibold text-slate-500 dark:text-[#8E8BA3]">Subject Line *</label>
+                  {subjectLines.length > 0 && (
+                    <span className="text-xs text-[#6D5DF6] dark:text-[#A78BFA] font-medium">AI Suggestions Available</span>
+                  )}
                 </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-semibold text-slate-500 dark:text-[#8E8BA3] mb-1.5">Subject Line</label>
-                  <input value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="w-full px-4 py-2.5 bg-slate-100 dark:bg-[#08061a] border border-slate-200/80 dark:border-white/[0.06] rounded-lg text-slate-900 dark:text-white placeholder-text-muted focus:outline-none focus:border-[#6D5DF6] dark:focus:border-[#A78BFA]" placeholder="Email subject..." />
-                </div>
-              )}
+                <input 
+                  type="text"
+                  value={selectedSubject} 
+                  onChange={e => setSelectedSubject(e.target.value)} 
+                  className="w-full px-4 py-2.5 bg-slate-100 dark:bg-[#08061a] border border-slate-200/80 dark:border-white/[0.06] rounded-lg text-slate-900 dark:text-white placeholder-text-muted focus:outline-none focus:border-[#6D5DF6] dark:focus:border-[#A78BFA]" 
+                  placeholder="Email subject line..." 
+                />
+                
+                {/* AI Subject Suggestions Pills */}
+                {subjectLines.length > 0 && (
+                  <div className="mt-2.5 space-y-1.5">
+                    <p className="text-[11px] font-medium text-slate-400 dark:text-[#8E8BA3]">Click an AI suggestion to apply:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {subjectLines.map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setSelectedSubject(s)}
+                          className={`text-xs px-2.5 py-1 rounded-md transition-all text-left truncate max-w-full ${
+                            selectedSubject === s
+                              ? 'bg-[#6D5DF6] text-white font-medium shadow-sm'
+                              : 'bg-slate-200/60 dark:bg-white/[0.05] text-slate-700 dark:text-slate-300 hover:bg-[#6D5DF6]/20 dark:hover:bg-[#A78BFA]/20 hover:text-[#6D5DF6] dark:hover:text-[#A78BFA]'
+                          }`}
+                          title={s}
+                        >
+                          ✨ {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Rich Text Email Editor */}
               <div>
