@@ -220,7 +220,7 @@ async def generate_reply_email(request: GenerateReplyRequest):
 @router.post("/send")
 async def send_outreach_email(
     request: QuickSendRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(deps.get_current_user)
 ):
     """Send outreach email directly via system email sender (team@elvionsolutions.com)."""
     loop = asyncio.get_event_loop()
