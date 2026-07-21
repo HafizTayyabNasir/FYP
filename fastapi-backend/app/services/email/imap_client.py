@@ -82,8 +82,26 @@ def _parse_date(msg) -> str:
         return datetime.utcnow().isoformat()
 
 
+def resolve_imap_host(user_email: str, current_host: str = None) -> str:
+    if current_host and current_host not in ("imap.gmail.com", "localhost", "", None):
+        return current_host
+    if not user_email:
+        return current_host or "imap.hostinger.com"
+    email_lower = user_email.lower().strip()
+    if "elvionsolutions.com" in email_lower:
+        return "imap.hostinger.com"
+    if "@gmail.com" in email_lower:
+        return "imap.gmail.com"
+    if "@outlook.com" in email_lower or "@hotmail.com" in email_lower:
+        return "outlook.office365.com"
+    if "@yahoo.com" in email_lower:
+        return "imap.mail.yahoo.com"
+    return current_host or "imap.hostinger.com"
+
+
 def fetch_inbox(host: str, port: int, user: str, password: str, max_emails: int = 50) -> List[dict]:
     """Connect via IMAP SSL, fetch the latest emails."""
+    host = resolve_imap_host(user, host)
     try:
         mail = imaplib.IMAP4_SSL(host, port)
         mail.login(user, password)

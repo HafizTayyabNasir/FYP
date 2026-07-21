@@ -59,17 +59,18 @@ class Settings(BaseSettings):
     GMAIL_REFRESH_TOKEN: Optional[str] = Field(default=None)
 
     # SMTP Configuration (fallback when Gmail API is not configured)
-    SMTP_HOST: str = Field(default="smtp.gmail.com")
+    SMTP_HOST: str = Field(default="smtp.hostinger.com")
     SMTP_PORT: int = 587
     SMTP_USER: Optional[str] = Field(default=None)
     SMTP_PASSWORD: Optional[str] = Field(default=None)
     SMTP_FROM_EMAIL: Optional[str] = Field(default=None)
     SMTP_FROM_NAME: str = "AI Client Hunt"
     
-    # IMAP Configuration
-    IMAP_HOST: str = Field(default="imap.gmail.com")
+    # IMAP Configuration (system sender inbox — e.g. team@elvionsolutions.com)
+    IMAP_HOST: str = Field(default="imap.hostinger.com")
     IMAP_PORT: int = 993
     IMAP_USER: Optional[str] = Field(default=None)
+    IMAP_PASSWORD: Optional[str] = Field(default=None)
 
     # Google OAuth (for per-user email connections)
     GOOGLE_CLIENT_ID: Optional[str] = Field(default=None)

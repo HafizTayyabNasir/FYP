@@ -171,8 +171,8 @@ async def sync_inbox(
     if not results:
         imap_host = req.imap_host if req and req.imap_host else settings.IMAP_HOST
         imap_port = req.imap_port if req and req.imap_port else settings.IMAP_PORT
-        imap_user = req.imap_user if req and req.imap_user else settings.SMTP_USER
-        imap_password = req.imap_password if req and req.imap_password else settings.SMTP_PASSWORD
+        imap_user = req.imap_user if req and req.imap_user else getattr(settings, "SMTP_USER", None)
+        imap_password = req.imap_password if req and req.imap_password else getattr(settings, "SMTP_PASSWORD", None)
 
         if imap_user and imap_password and imap_host:
             try:
@@ -189,6 +189,37 @@ async def sync_inbox(
                 results.append(res)
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"IMAP Sync failed: {e}")
+
+    # ── Always also sync the system sender mailbox (team@elvionsolutions.com) ──
+    # Replies to outreach emails go to this mailbox, so we must always fetch them
+    sys_imap_user = getattr(settings, "IMAP_USER", None)
+    sys_imap_pass = getattr(settings, "IMAP_PASSWORD", None)
+    sys_imap_host = getattr(settings, "IMAP_HOST", "imap.hostinger.com")
+    sys_imap_port = getattr(settings, "IMAP_PORT", 993)
+
+    # Only sync if configured AND not already synced via one of the account loops above
+    already_synced_emails = {acc.email_address.lower() for acc in accounts if acc.email_address}
+    print(f"[SYNC] System mailbox: user={sys_imap_user}, host={sys_imap_host}, has_pass={bool(sys_imap_pass)}, already_synced={already_synced_emails}")
+
+    if sys_imap_user and sys_imap_pass and sys_imap_user.lower() not in already_synced_emails:
+        try:
+            from app.services.email.imap_client import sync_inbox as _sync_imap
+            print(f"[SYNC] Syncing system mailbox {sys_imap_user} via {sys_imap_host}:{sys_imap_port}...")
+            with concurrent.futures.ThreadPoolExecutor() as ex:
+                res = await loop.run_in_executor(
+                    ex, lambda: _sync_imap(
+                        host=sys_imap_host,
+                        port=sys_imap_port,
+                        user=sys_imap_user,
+                        password=sys_imap_pass,
+                    )
+                )
+            print(f"[SYNC] System mailbox sync result: {res}")
+            results.append(res)
+        except Exception as e:
+            print(f"[SYNC] System mailbox IMAP sync FAILED: {e}")
+    elif not sys_imap_user or not sys_imap_pass:
+        print(f"[SYNC] System mailbox NOT configured — IMAP_USER or IMAP_PASSWORD missing in env")
 
     if not results and _resend_configured():
         return {"success": True, "synced": 0, "note": "Resend is send-only. Sent emails are shown in the Sent folder."}
