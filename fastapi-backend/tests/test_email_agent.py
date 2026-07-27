@@ -11,3 +11,4 @@ def test_email_agent_init():
 # Ensure language fallback works
 # Verify fallback behavior
 # Signature test case
+# Full flow test
