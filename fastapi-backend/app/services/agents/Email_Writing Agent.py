@@ -336,3 +336,4 @@ def process_message(user_message, user_content, conversation_history, session_da
 # Added notes on scoring categories
 # Structure guidelines help reduce repetitive output
 # Personalization is critical for avoid spam filters
+# Anti-spam rules must strictly be followed
