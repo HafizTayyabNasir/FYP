@@ -7,3 +7,4 @@ def test_email_agent_init():
 # Mock data structures
 # Ensure missing business name fallback works
 # Test personalization logic
+# Test spammy words are avoided
