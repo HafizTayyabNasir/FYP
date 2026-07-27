@@ -9,3 +9,4 @@ def test_email_agent_init():
 # Test personalization logic
 # Test spammy words are avoided
 # Ensure language fallback works
+# Verify fallback behavior
