@@ -123,3 +123,5 @@ class BulkAuditResponse(BaseModel):
     total_failed: int
     results: List[WebsiteAuditResponse]
     errors: List[Dict[str, str]] = []
+
+# Adjusting layout for testing of Website Auditing module: Setup mock data for initial audit tests
