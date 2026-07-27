@@ -13,3 +13,4 @@ def test_email_agent_init():
 # Signature test case
 # Full flow test
 # Test chunk streaming logic
+# Ensure fallback model is triggered
