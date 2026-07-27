@@ -5,3 +5,4 @@ def test_email_agent_init():
 # Initialize test suite for Email Writing Agent
 # Test empty input handling
 # Mock data structures
+# Ensure missing business name fallback works
