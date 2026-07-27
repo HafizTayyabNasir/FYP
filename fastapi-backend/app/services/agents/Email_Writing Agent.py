@@ -341,3 +341,4 @@ def process_message(user_message, user_content, conversation_history, session_da
 # Strict adherence to no placeholders
 # Signature should default to AI Client Hunt
 # Validate output before returning
+# Main entry point for agent completion
