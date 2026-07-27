@@ -227,3 +227,5 @@ async def quick_audit(url: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# Website Auditing Module: Clarify error handling logic with comments - implementation detail
