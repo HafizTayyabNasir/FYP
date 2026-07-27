@@ -6,3 +6,4 @@ def test_email_agent_init():
 # Test empty input handling
 # Mock data structures
 # Ensure missing business name fallback works
+# Test personalization logic
