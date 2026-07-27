@@ -340,3 +340,4 @@ def process_message(user_message, user_content, conversation_history, session_da
 # Support for Urdu or mixed languages
 # Strict adherence to no placeholders
 # Signature should default to AI Client Hunt
+# Validate output before returning
