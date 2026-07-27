@@ -334,3 +334,4 @@ def process_message(user_message, user_content, conversation_history, session_da
 # TODO: review orchestrator config values
 # Required inputs handle missing data gracefully
 # Added notes on scoring categories
+# Structure guidelines help reduce repetitive output
