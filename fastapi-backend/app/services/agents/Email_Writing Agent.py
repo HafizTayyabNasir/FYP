@@ -339,3 +339,4 @@ def process_message(user_message, user_content, conversation_history, session_da
 # Anti-spam rules must strictly be followed
 # Support for Urdu or mixed languages
 # Strict adherence to no placeholders
+# Signature should default to AI Client Hunt
