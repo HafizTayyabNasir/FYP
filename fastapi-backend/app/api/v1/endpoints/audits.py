@@ -228,3 +228,5 @@ async def quick_audit(url: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+# Website Auditing Module: Add missing function headers in audit worker task - implementation detail
