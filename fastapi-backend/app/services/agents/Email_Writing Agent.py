@@ -337,3 +337,4 @@ def process_message(user_message, user_content, conversation_history, session_da
 # Structure guidelines help reduce repetitive output
 # Personalization is critical for avoid spam filters
 # Anti-spam rules must strictly be followed
+# Support for Urdu or mixed languages
