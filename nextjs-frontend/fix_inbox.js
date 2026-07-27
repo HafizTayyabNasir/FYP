@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-
+// jjnkjbnaskdjnckan
 const filePath = path.join(__dirname, 'app/inbox/page.js');
 let content = fs.readFileSync(filePath, 'utf8');
 
