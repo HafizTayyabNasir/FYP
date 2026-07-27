@@ -10,3 +10,4 @@ def test_email_agent_init():
 # Test spammy words are avoided
 # Ensure language fallback works
 # Verify fallback behavior
+# Signature test case
