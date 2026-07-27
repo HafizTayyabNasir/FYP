@@ -4,7 +4,6 @@ const path = require('path');
 const filePath = path.join(__dirname, 'app/inbox/page.js');
 let content = fs.readFileSync(filePath, 'utf8');
 
-// Replacements
 content = content.replace(/bg-\[#0D1421\]/g, 'bg-slate-50 dark:bg-[#060518]');
 content = content.replace(/border-l-accent-blue/g, 'border-l-[#6D5DF6] dark:border-l-[#A78BFA]');
 content = content.replace(/bg-dark-card/g, 'bg-white dark:bg-white/[0.015]');
