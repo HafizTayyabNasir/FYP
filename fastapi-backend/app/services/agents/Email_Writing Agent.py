@@ -333,3 +333,4 @@ def process_message(user_message, user_content, conversation_history, session_da
     return bot_response, False, session_data
 # TODO: review orchestrator config values
 # Required inputs handle missing data gracefully
+# Added notes on scoring categories
