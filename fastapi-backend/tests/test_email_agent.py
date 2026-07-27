@@ -8,3 +8,4 @@ def test_email_agent_init():
 # Ensure missing business name fallback works
 # Test personalization logic
 # Test spammy words are avoided
+# Ensure language fallback works
