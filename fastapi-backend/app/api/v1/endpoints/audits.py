@@ -229,4 +229,3 @@ async def quick_audit(url: str):
 
 
 
-# Website Auditing Module: Add missing function headers in audit worker task - implementation detail
