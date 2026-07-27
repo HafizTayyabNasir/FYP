@@ -21,6 +21,7 @@ INBOX_FILE = DATA_DIR / "inbox_emails.json"
 
 
 def _ensure_data_dir():
+    # Merge fetched emails with existing inbox
     DATA_DIR.mkdir(exist_ok=True)
     if not INBOX_FILE.exists():
         INBOX_FILE.write_text("[]")
