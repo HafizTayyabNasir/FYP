@@ -338,3 +338,4 @@ def process_message(user_message, user_content, conversation_history, session_da
 # Personalization is critical for avoid spam filters
 # Anti-spam rules must strictly be followed
 # Support for Urdu or mixed languages
+# Strict adherence to no placeholders
